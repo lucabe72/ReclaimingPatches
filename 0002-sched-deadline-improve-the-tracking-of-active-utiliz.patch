@@ -1,0 +1,282 @@
+From 554b0fbe9a96bf9bf43ae1f177e0eb6b1939e611 Mon Sep 17 00:00:00 2001
+From: Luca Abeni <luca.abeni@unitn.it>
+Date: Mon, 21 Nov 2016 14:52:50 +0100
+Subject: [PATCH 2/7] sched/deadline: improve the tracking of active
+ utilization
+
+This patch implements a more theoretically sound algorithm for
+tracking active utilization: instead of decreasing it when a
+task blocks, use a timer (the "inactive timer", named after the
+"Inactive" task state of the GRUB algorithm) to decrease the
+active utilization at the so called "0-lag time".
+
+Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
+---
+ include/linux/sched.h   |   3 +-
+ kernel/sched/core.c     |   2 +
+ kernel/sched/deadline.c | 150 ++++++++++++++++++++++++++++++++++++++++++++----
+ kernel/sched/sched.h    |   1 +
+ 4 files changed, 143 insertions(+), 13 deletions(-)
+
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 2723433..ffb312b 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -1446,13 +1446,14 @@ struct sched_dl_entity {
+ 	 * @dl_yielded tells if task gave up the cpu before consuming
+ 	 * all its available runtime during the last job.
+ 	 */
+-	int dl_throttled, dl_boosted, dl_yielded;
++	int dl_throttled, dl_boosted, dl_yielded, dl_non_contending;
+ 
+ 	/*
+ 	 * Bandwidth enforcement timer. Each -deadline task has its
+ 	 * own bandwidth to be enforced, thus we need one timer per task.
+ 	 */
+ 	struct hrtimer dl_timer;
++	struct hrtimer inactive_timer;
+ };
+ 
+ union rcu_special {
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 7f7489b..f0b5f4e 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -2187,6 +2187,7 @@ void __dl_clear_params(struct task_struct *p)
+ 
+ 	dl_se->dl_throttled = 0;
+ 	dl_se->dl_yielded = 0;
++	dl_se->dl_non_contending = 0;
+ }
+ 
+ /*
+@@ -2218,6 +2219,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
+ 
+ 	RB_CLEAR_NODE(&p->dl.rb_node);
+ 	init_dl_task_timer(&p->dl);
++	init_inactive_task_timer(&p->dl);
+ 	__dl_clear_params(p);
+ 
+ 	INIT_LIST_HEAD(&p->rt.run_list);
+diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
+index fc347d9..9f50b19 100644
+--- a/kernel/sched/deadline.c
++++ b/kernel/sched/deadline.c
+@@ -63,6 +63,46 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
+ 	SCHED_WARN_ON(dl_rq->running_bw > old); /* underflow */
+ }
+ 
++static void task_go_inactive(struct task_struct *p)
++{
++	struct sched_dl_entity *dl_se = &p->dl;
++	struct hrtimer *timer = &dl_se->inactive_timer;
++	struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
++	struct rq *rq = rq_of_dl_rq(dl_rq);
++	s64 zerolag_time;
++
++	WARN_ON(dl_se->dl_runtime == 0);
++
++	WARN_ON(hrtimer_active(&dl_se->inactive_timer));
++	WARN_ON(dl_se->dl_non_contending);
++
++	zerolag_time = dl_se->deadline -
++		 div64_long((dl_se->runtime * dl_se->dl_period),
++			dl_se->dl_runtime);
++
++	/*
++	 * Using relative times instead of the absolute "0-lag time"
++	 * allows to simplify the code
++	 */
++	zerolag_time -= rq_clock(rq);
++
++	/*
++	 * If the "0-lag time" already passed, decrease the active
++	 * utilization now, instead of starting a timer
++	 */
++	if (zerolag_time < 0) {
++		sub_running_bw(dl_se, dl_rq);
++		if (!dl_task(p))
++			__dl_clear_params(p);
++
++		return;
++	}
++
++	dl_se->dl_non_contending = 1;
++	get_task_struct(p);
++	hrtimer_start(timer, ns_to_ktime(zerolag_time), HRTIMER_MODE_REL);
++}
++
+ static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
+ {
+ 	struct sched_dl_entity *dl_se = &p->dl;
+@@ -608,10 +648,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
+ 	 * The task might have changed its scheduling policy to something
+ 	 * different than SCHED_DEADLINE (through switched_from_dl()).
+ 	 */
+-	if (!dl_task(p)) {
+-		__dl_clear_params(p);
++	if (!dl_task(p))
+ 		goto unlock;
+-	}
+ 
+ 	/*
+ 	 * The task might have been boosted by someone else and might be in the
+@@ -798,6 +836,48 @@ static void update_curr_dl(struct rq *rq)
+ 	}
+ }
+ 
++static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
++{
++	struct sched_dl_entity *dl_se = container_of(timer,
++						     struct sched_dl_entity,
++						     inactive_timer);
++	struct task_struct *p = dl_task_of(dl_se);
++	struct rq_flags rf;
++	struct rq *rq;
++
++	rq = task_rq_lock(p, &rf);
++
++	if (!dl_task(p) || p->state == TASK_DEAD) {
++		if (p->state == TASK_DEAD && dl_se->dl_non_contending)
++			sub_running_bw(&p->dl, dl_rq_of_se(&p->dl));
++
++		__dl_clear_params(p);
++
++		goto unlock;
++	}
++	if (dl_se->dl_non_contending == 0)
++		goto unlock;
++
++	sched_clock_tick();
++	update_rq_clock(rq);
++
++	sub_running_bw(dl_se, &rq->dl);
++	dl_se->dl_non_contending = 0;
++unlock:
++	task_rq_unlock(rq, p, &rf);
++	put_task_struct(p);
++
++	return HRTIMER_NORESTART;
++}
++
++void init_inactive_task_timer(struct sched_dl_entity *dl_se)
++{
++	struct hrtimer *timer = &dl_se->inactive_timer;
++
++	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++	timer->function = inactive_task_timer;
++}
++
+ #ifdef CONFIG_SMP
+ 
+ static void inc_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
+@@ -932,7 +1012,28 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+ 	if (flags & ENQUEUE_WAKEUP) {
+ 		struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
+ 
+-		add_running_bw(dl_se, dl_rq);
++		if (dl_se->dl_non_contending) {
++			/*
++			 * If the timer handler is currently running and the
++			 * timer cannot be cancelled, inactive_task_timer()
++			 * will see that dl_not_contending is not set, and
++			 * will do nothing, so we are still safe.
++			 */
++			if (hrtimer_try_to_cancel(&dl_se->inactive_timer) == 1)
++				put_task_struct(dl_task_of(dl_se));
++			WARN_ON(dl_task_of(dl_se)->nr_cpus_allowed > 1);
++			dl_se->dl_non_contending = 0;
++		} else {
++			/*
++			 * Since "dl_non_contending" is not set, the
++			 * task's utilization has already been removed from
++			 * active utilization (either when the task blocked,
++			 * when the "inactive timer" fired, or when it has
++			 * been cancelled in select_task_rq_dl()).
++			 * So, add it back.
++			 */
++			add_running_bw(dl_se, dl_rq);
++		}
+ 		update_dl_entity(dl_se, pi_se);
+ 	}
+ 	else if (flags & ENQUEUE_REPLENISH)
+@@ -1012,7 +1113,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+ 		sub_running_bw(&p->dl, &rq->dl);
+ 
+ 	if (flags & DEQUEUE_SLEEP)
+-		sub_running_bw(&p->dl, &rq->dl);
++		task_go_inactive(p);
+ }
+ 
+ /*
+@@ -1086,6 +1187,22 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+ 	}
+ 	rcu_read_unlock();
+ 
++	rq = task_rq(p);
++	raw_spin_lock(&rq->lock);
++	if (p->dl.dl_non_contending) {
++		sub_running_bw(&p->dl, &rq->dl);
++		p->dl.dl_non_contending = 0;
++		/*
++		 * If the timer handler is currently running and the
++		 * timer cannot be cancelled, inactive_task_timer()
++		 * will see that dl_not_contending is not set, and
++		 * will do nothing, so we are still safe.
++		 */
++		if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
++			put_task_struct(p);
++	}
++	raw_spin_unlock(&rq->lock);
++
+ out:
+ 	return cpu;
+ }
+@@ -1732,16 +1849,25 @@ void __init init_sched_dl_class(void)
+ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+ {
+ 	/*
+-	 * Start the deadline timer; if we switch back to dl before this we'll
+-	 * continue consuming our current CBS slice. If we stay outside of
+-	 * SCHED_DEADLINE until the deadline passes, the timer will reset the
+-	 * task.
++	 * task_go_inactive() can start the "inactive timer" (if the 0-lag
++	 * time is in the future). If the task switches back to dl before
++	 * the "inactive timer" fires, it can continue to consume its current
++	 * runtime using its current deadline. If it stays outside of
++	 * SCHED_DEADLINE until the 0-lag time passes, inactive_task_timer()
++	 * will reset the task parameters.
+ 	 */
+-	if (!start_dl_timer(p))
+-		__dl_clear_params(p);
++	if (task_on_rq_queued(p) && p->dl.dl_runtime)
++		task_go_inactive(p);
+ 
+-	if (task_on_rq_queued(p))
++	/*
++	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
++	 * at the 0-lag time, because the task could have been migrated
++	 * while SCHED_OTHER in the meanwhile.
++	 */
++	if (p->dl.dl_non_contending) {
+ 		sub_running_bw(&p->dl, &rq->dl);
++		p->dl.dl_non_contending = 0;
++	}
+ 
+ 	/*
+ 	 * Since this might be the only -deadline task on the rq,
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index 07956af..f308ae1 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -1361,6 +1361,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
+ extern struct dl_bandwidth def_dl_bandwidth;
+ extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
+ extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
++extern void init_inactive_task_timer(struct sched_dl_entity *dl_se);
+ 
+ unsigned long to_ratio(u64 period, u64 runtime);
+ 
+-- 
+2.7.4
+
