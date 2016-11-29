@@ -1,7 +1,7 @@
-From 554b0fbe9a96bf9bf43ae1f177e0eb6b1939e611 Mon Sep 17 00:00:00 2001
+From ff6055e92e26eb6950c8836a55befde058d1a84d Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
-Subject: [PATCH 2/7] sched/deadline: improve the tracking of active
+Subject: [PATCH 2/6] sched/deadline: improve the tracking of active
  utilization
 
 This patch implements a more theoretically sound algorithm for
@@ -59,11 +59,11 @@ index 7f7489b..f0b5f4e 100644
  
  	INIT_LIST_HEAD(&p->rt.run_list);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index fc347d9..9f50b19 100644
+index 19ff45ab..75b5056 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -63,6 +63,46 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
- 	SCHED_WARN_ON(dl_rq->running_bw > old); /* underflow */
+@@ -64,6 +64,46 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
+ 		dl_rq->running_bw = 0; /* underflow */
  }
  
 +static void task_go_inactive(struct task_struct *p)
@@ -109,7 +109,7 @@ index fc347d9..9f50b19 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -608,10 +648,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
+@@ -609,10 +649,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
  	 * The task might have changed its scheduling policy to something
  	 * different than SCHED_DEADLINE (through switched_from_dl()).
  	 */
@@ -121,7 +121,7 @@ index fc347d9..9f50b19 100644
  
  	/*
  	 * The task might have been boosted by someone else and might be in the
-@@ -798,6 +836,48 @@ static void update_curr_dl(struct rq *rq)
+@@ -799,6 +837,48 @@ static void update_curr_dl(struct rq *rq)
  	}
  }
  
@@ -170,7 +170,7 @@ index fc347d9..9f50b19 100644
  #ifdef CONFIG_SMP
  
  static void inc_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
-@@ -932,7 +1012,28 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -933,7 +1013,28 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	if (flags & ENQUEUE_WAKEUP) {
  		struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
  
@@ -200,7 +200,7 @@ index fc347d9..9f50b19 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -1012,7 +1113,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1013,7 +1114,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		sub_running_bw(&p->dl, &rq->dl);
  
  	if (flags & DEQUEUE_SLEEP)
@@ -209,7 +209,7 @@ index fc347d9..9f50b19 100644
  }
  
  /*
-@@ -1086,6 +1187,22 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1087,6 +1188,22 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	}
  	rcu_read_unlock();
  
@@ -232,7 +232,7 @@ index fc347d9..9f50b19 100644
  out:
  	return cpu;
  }
-@@ -1732,16 +1849,25 @@ void __init init_sched_dl_class(void)
+@@ -1733,16 +1850,25 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
