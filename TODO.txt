@@ -1,0 +1,2 @@
+Check reviews to v2 to see if something is still missing
+	- Probably, some comments must be updated/fixed/added
