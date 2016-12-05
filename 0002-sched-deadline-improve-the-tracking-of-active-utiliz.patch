@@ -1,4 +1,4 @@
-From cae9d1b058a186253d02380382bffb88cb9b91ef Mon Sep 17 00:00:00 2001
+From 3055d1e0dab5023152ce23730c3f40a96c86b723 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/6] sched/deadline: improve the tracking of active
@@ -19,7 +19,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  4 files changed, 158 insertions(+), 13 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 2d0c82e..db2e2e0 100644
+index 2d0c82e..5ae41b7 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
 @@ -1447,14 +1447,30 @@ struct sched_dl_entity {
@@ -32,7 +32,7 @@ index 2d0c82e..db2e2e0 100644
 +	 * indicates if the inactive timer has been armed and its handler
 +	 * has not been executed yet. This flag is useful to avoid race
 +	 * conditions between the inactive timer handler and the wakeup
-+	 * code. 
++	 * code.
  	 */
 -	int dl_throttled, dl_boosted, dl_yielded;
 +	int dl_throttled, dl_boosted, dl_yielded, dl_non_contending;

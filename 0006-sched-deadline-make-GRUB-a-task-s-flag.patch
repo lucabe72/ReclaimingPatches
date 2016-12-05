@@ -1,4 +1,4 @@
-From 4f243c79090c3af853df74758490e734d0cf830f Mon Sep 17 00:00:00 2001
+From 50b977872e109102e9582b3f7b817b96ba821856 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 6 Jul 2015 11:25:03 +0200
 Subject: [PATCH 6/6] sched/deadline: make GRUB a task's flag
