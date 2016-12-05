@@ -1,4 +1,4 @@
-From 919d7cac46cbb7eded96b666e785812aed57974a Mon Sep 17 00:00:00 2001
+From a09da789640ad420f20e41c73f0e71d59e73030a Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/6] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -16,10 +16,10 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  3 files changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 91ba903..fc4e5f0 100644
+index 3bbfa37..08b3a41 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -8270,6 +8270,10 @@ static void sched_dl_do_global(void)
+@@ -8285,6 +8285,10 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -31,7 +31,7 @@ index 91ba903..fc4e5f0 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 06270771..74beadb 100644
+index cc0c79b..0689331 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -150,6 +150,11 @@ void init_dl_rq(struct dl_rq *dl_rq)
@@ -56,7 +56,7 @@ index 06270771..74beadb 100644
  
  /*
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index f308ae1..f246807 100644
+index e422803..ef4bdaa 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -542,6 +542,12 @@ struct dl_rq {

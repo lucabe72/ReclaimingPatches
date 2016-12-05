@@ -1,4 +1,4 @@
-From 9a9772eccd47841192849bfd5b138fc0d0e856ec Mon Sep 17 00:00:00 2001
+From 59cf18c59480c8ab5b5bd0f406739482ffb6cb64 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 11:18:14 +0100
 Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline
@@ -16,7 +16,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 35 insertions(+), 33 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index f0b5f4e..91ba903 100644
+index d0f08ae..3bbfa37 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2509,9 +2509,6 @@ static inline int dl_bw_cpus(int i)
@@ -81,7 +81,7 @@ index f0b5f4e..91ba903 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 75b5056..7adc104 100644
+index e04f025..c0c7e6c 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -93,8 +93,14 @@ static void task_go_inactive(struct task_struct *p)

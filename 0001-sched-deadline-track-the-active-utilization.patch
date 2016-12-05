@@ -1,4 +1,4 @@
-From 3525efd14d83243632ed433ae996b0cdbf4bd44c Mon Sep 17 00:00:00 2001
+From 9e2032ba3ab801a803d379073767136f1169372f Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
 Subject: [PATCH 1/6] sched/deadline: track the active utilization
@@ -22,7 +22,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 59 insertions(+), 3 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index c61b461..19ff45ab 100644
+index 70ef2b1..36d4815 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -43,6 +43,27 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
@@ -147,7 +147,7 @@ index c61b461..19ff45ab 100644
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index d7e3931..07956af 100644
+index 7b34c78..0659772 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -536,6 +536,12 @@ struct dl_rq {
