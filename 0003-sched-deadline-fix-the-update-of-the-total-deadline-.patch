@@ -1,4 +1,4 @@
-From 59cf18c59480c8ab5b5bd0f406739482ffb6cb64 Mon Sep 17 00:00:00 2001
+From ae34d04341e6cfdaf70578ddb5180665f543fbf3 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 11:18:14 +0100
 Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline
@@ -81,7 +81,7 @@ index d0f08ae..3bbfa37 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index e04f025..c0c7e6c 100644
+index f90e5cb..861bdb4 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -93,8 +93,14 @@ static void task_go_inactive(struct task_struct *p)
@@ -115,7 +115,7 @@ index e04f025..c0c7e6c 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1365,15 +1376,18 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1374,15 +1385,18 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

@@ -1,16 +1,6 @@
 Check reviews to v2 to see if something is still missing
-	- Probably, some comments must be updated/fixed/added
-Patch 0001:
-> Just to be sure I understand correctly: you suggest to add a check for
-> "state == TASK_DEAD" (skipping the cleanup if the condition is true) in
-> dequeue_task_dl(), and to add a sub_running_bw() in task_dead_dl()...
-> Is this understanding correct?  
 
-This is more ugly, I know. It makes probably sense though if we then need it in
-the next patch. But you are saying the contrary (we don't actually need it), so
-in that case we might just want to add a comment here explaining why we handle
-the "task is dying" case together with "task is going to sleep" (so that I
-don't forget? :).
 
+Document dl_non_contending
 
 

@@ -1,4 +1,4 @@
-From 2eabbed295993798c03b69ece1ff6901a185e2ea Mon Sep 17 00:00:00 2001
+From 6a58acc50f030dbcb2462a3ac2bb8dd05a2e599d Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/6] sched/deadline: improve the tracking of active
@@ -59,7 +59,7 @@ index d188044..d0f08ae 100644
  
  	INIT_LIST_HEAD(&p->rt.run_list);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 36d4815..e04f025 100644
+index 20201a7..f90e5cb 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -64,6 +64,46 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -200,16 +200,16 @@ index 36d4815..e04f025 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -1013,7 +1114,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
- 		sub_running_bw(&p->dl, &rq->dl);
- 
+@@ -1022,7 +1123,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+ 	 * or "inactive")
+ 	 */
  	if (flags & DEQUEUE_SLEEP)
 -		sub_running_bw(&p->dl, &rq->dl);
 +		task_go_inactive(p);
  }
  
  /*
-@@ -1087,6 +1188,22 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1096,6 +1197,22 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	}
  	rcu_read_unlock();
  
@@ -232,7 +232,7 @@ index 36d4815..e04f025 100644
  out:
  	return cpu;
  }
-@@ -1733,16 +1850,25 @@ void __init init_sched_dl_class(void)
+@@ -1742,16 +1859,25 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
