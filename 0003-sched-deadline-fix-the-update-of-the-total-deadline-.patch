@@ -1,4 +1,4 @@
-From ae34d04341e6cfdaf70578ddb5180665f543fbf3 Mon Sep 17 00:00:00 2001
+From 2afa816fb77650b2003abcc0b731303bb0b0f4f7 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 11:18:14 +0100
 Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline

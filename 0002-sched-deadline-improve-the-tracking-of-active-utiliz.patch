@@ -1,4 +1,4 @@
-From 6a58acc50f030dbcb2462a3ac2bb8dd05a2e599d Mon Sep 17 00:00:00 2001
+From cae9d1b058a186253d02380382bffb88cb9b91ef Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/6] sched/deadline: improve the tracking of active
@@ -12,19 +12,27 @@ active utilization at the so called "0-lag time".
 
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- include/linux/sched.h   |   3 +-
+ include/linux/sched.h   |  18 +++++-
  kernel/sched/core.c     |   2 +
  kernel/sched/deadline.c | 150 ++++++++++++++++++++++++++++++++++++++++++++----
  kernel/sched/sched.h    |   1 +
- 4 files changed, 143 insertions(+), 13 deletions(-)
+ 4 files changed, 158 insertions(+), 13 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 2d0c82e..4dc704f 100644
+index 2d0c82e..db2e2e0 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1448,13 +1448,14 @@ struct sched_dl_entity {
+@@ -1447,14 +1447,30 @@ struct sched_dl_entity {
+ 	 *
  	 * @dl_yielded tells if task gave up the cpu before consuming
  	 * all its available runtime during the last job.
++	 *
++	 * @dl_non_contending tells if task is inactive while still
++	 * contributing to the active utilization. In other words, it
++	 * indicates if the inactive timer has been armed and its handler
++	 * has not been executed yet. This flag is useful to avoid race
++	 * conditions between the inactive timer handler and the wakeup
++	 * code. 
  	 */
 -	int dl_throttled, dl_boosted, dl_yielded;
 +	int dl_throttled, dl_boosted, dl_yielded, dl_non_contending;
@@ -34,6 +42,14 @@ index 2d0c82e..4dc704f 100644
  	 * own bandwidth to be enforced, thus we need one timer per task.
  	 */
  	struct hrtimer dl_timer;
++
++	/*
++	 * Inactive timer, responsible for decreasing the active utilization
++	 * at the "0-lag time". When a -deadline task blocks, it contributes
++	 * to GRUB's active utilization until the "0-lag time", hence a
++	 * timer is needed to decrease the active utilization at the correct
++	 * time.
++	 */
 +	struct hrtimer inactive_timer;
  };
  
