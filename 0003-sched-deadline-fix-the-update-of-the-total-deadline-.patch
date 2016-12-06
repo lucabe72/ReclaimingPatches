@@ -1,7 +1,7 @@
 From 67bb9f0bb9d78d073d2155986bc1e9df9899b857 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 11:18:14 +0100
-Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline
+Subject: [PATCH 3/7] sched/deadline: fix the update of the total -deadline
  utilization
 
 Now that the inactive timer can be armed to fire at the 0-lag time,

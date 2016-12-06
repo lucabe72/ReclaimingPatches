@@ -1,7 +1,7 @@
 From ddac38cab1015ea803a0d2445d6bbc97a910aba8 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
-Subject: [PATCH 5/6] sched/deadline: do not reclaim the whole CPU bandwidth
+Subject: [PATCH 5/7] sched/deadline: do not reclaim the whole CPU bandwidth
 
 Original GRUB tends to reclaim 100% of the CPU time... And this
 allows a CPU hog to starve non-deadline tasks.
