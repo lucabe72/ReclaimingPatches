@@ -1,7 +1,7 @@
-From 67bb9f0bb9d78d073d2155986bc1e9df9899b857 Mon Sep 17 00:00:00 2001
+From e9afa903af943104137088eccfc073ee08cda8ad Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 11:18:14 +0100
-Subject: [PATCH 3/7] sched/deadline: fix the update of the total -deadline
+Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline
  utilization
 
 Now that the inactive timer can be armed to fire at the 0-lag time,
@@ -81,10 +81,10 @@ index d0f08ae..3bbfa37 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index f90e5cb..861bdb4 100644
+index cdb7274..c087c3d 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -93,8 +93,14 @@ static void task_go_inactive(struct task_struct *p)
+@@ -94,8 +94,14 @@ static void task_go_inactive(struct task_struct *p)
  	 */
  	if (zerolag_time < 0) {
  		sub_running_bw(dl_se, dl_rq);
@@ -100,7 +100,7 @@ index f90e5cb..861bdb4 100644
  
  		return;
  	}
-@@ -849,9 +855,14 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -850,9 +856,14 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
@@ -115,7 +115,7 @@ index f90e5cb..861bdb4 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1374,15 +1385,18 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1375,15 +1386,18 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

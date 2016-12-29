@@ -1,7 +1,7 @@
-From ddac38cab1015ea803a0d2445d6bbc97a910aba8 Mon Sep 17 00:00:00 2001
+From 789d7a666fefe4a56e307d3065ea34db7a80b7f4 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
-Subject: [PATCH 5/7] sched/deadline: do not reclaim the whole CPU bandwidth
+Subject: [PATCH 5/6] sched/deadline: do not reclaim the whole CPU bandwidth
 
 Original GRUB tends to reclaim 100% of the CPU time... And this
 allows a CPU hog to starve non-deadline tasks.
@@ -31,10 +31,10 @@ index 3bbfa37..08b3a41 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 8c7979c..5f39579 100644
+index 361887b..7585dfb 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -150,6 +150,11 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -151,6 +151,11 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -46,7 +46,7 @@ index 8c7979c..5f39579 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -772,7 +777,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -773,7 +778,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {

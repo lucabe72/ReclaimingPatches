@@ -1,7 +1,7 @@
-From 59ce32ab7f7ea4128da0df70944e25d35bfae64f Mon Sep 17 00:00:00 2001
+From 3c13a93766c23588e077efdaadc7a3c48b19b618 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
-Subject: [PATCH 1/7] sched/deadline: track the active utilization
+Subject: [PATCH 1/6] sched/deadline: track the active utilization
 
 Active utilization is defined as the total utilization of active
 (TASK_RUNNING) tasks queued on a runqueue. Hence, it is increased
@@ -17,15 +17,15 @@ time), a more theoretically sound solution will follow.
 Signed-off-by: Juri Lelli <juri.lelli@arm.com>
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/deadline.c | 65 ++++++++++++++++++++++++++++++++++++++++++++++---
+ kernel/sched/deadline.c | 66 ++++++++++++++++++++++++++++++++++++++++++++++---
  kernel/sched/sched.h    |  6 +++++
- 2 files changed, 68 insertions(+), 3 deletions(-)
+ 2 files changed, 69 insertions(+), 3 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 70ef2b1..20201a7 100644
+index 70ef2b1..23c840e 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -43,6 +43,27 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
+@@ -43,6 +43,28 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
  	return !RB_EMPTY_NODE(&dl_se->rb_node);
  }
  
@@ -46,14 +46,15 @@ index 70ef2b1..20201a7 100644
 +
 +	lockdep_assert_held(&(rq_of_dl_rq(dl_rq))->lock);
 +	dl_rq->running_bw -= dl_se->dl_bw;
-+	if (SCHED_WARN_ON(dl_rq->running_bw > old))
-+		dl_rq->running_bw = 0; /* underflow */
++	SCHED_WARN_ON(dl_rq->running_bw > old); /* underflow */
++	if (dl_rq->running_bw > old)
++		dl_rq->running_bw = 0;
 +}
 +
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -909,8 +930,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -909,8 +931,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * parameters of the task might need updating. Otherwise,
  	 * we want a replenishment of its runtime.
  	 */
@@ -67,7 +68,7 @@ index 70ef2b1..20201a7 100644
  	else if (flags & ENQUEUE_REPLENISH)
  		replenish_dl_entity(dl_se, pi_se);
  
-@@ -947,14 +972,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -947,14 +973,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		return;
  	}
  
@@ -95,7 +96,7 @@ index 70ef2b1..20201a7 100644
  
  	enqueue_dl_entity(&p->dl, pi_se, flags);
  
-@@ -972,6 +1008,21 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -972,6 +1009,21 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  {
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
@@ -117,7 +118,7 @@ index 70ef2b1..20201a7 100644
  }
  
  /*
-@@ -1501,7 +1552,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1501,7 +1553,9 @@ static int push_dl_task(struct rq *rq)
  	}
  
  	deactivate_task(rq, next_task, 0);
@@ -127,7 +128,7 @@ index 70ef2b1..20201a7 100644
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
  
-@@ -1589,7 +1642,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1589,7 +1643,9 @@ static void pull_dl_task(struct rq *this_rq)
  			resched = true;
  
  			deactivate_task(src_rq, p, 0);
@@ -137,7 +138,7 @@ index 70ef2b1..20201a7 100644
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
  
-@@ -1695,6 +1750,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1695,6 +1751,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (!start_dl_timer(p))
  		__dl_clear_params(p);
  
@@ -147,7 +148,7 @@ index 70ef2b1..20201a7 100644
  	/*
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
-@@ -1712,6 +1770,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1712,6 +1771,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
