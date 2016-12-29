@@ -1,4 +1,4 @@
-From e9afa903af943104137088eccfc073ee08cda8ad Mon Sep 17 00:00:00 2001
+From e01e6261eeceedd028438a3edff00cccd5229af0 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 11:18:14 +0100
 Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline
@@ -16,7 +16,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 35 insertions(+), 33 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index d0f08ae..3bbfa37 100644
+index 98f9944..5030b3c 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2509,9 +2509,6 @@ static inline int dl_bw_cpus(int i)

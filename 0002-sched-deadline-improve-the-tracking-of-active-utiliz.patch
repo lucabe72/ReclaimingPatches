@@ -1,4 +1,4 @@
-From fd133b0bf2f4db0e81ad9a828ac8250f7bba0f7b Mon Sep 17 00:00:00 2001
+From 38a91dedff7c7cfe2907ff907eb43db3663376af Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/6] sched/deadline: improve the tracking of active
@@ -19,10 +19,10 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  4 files changed, 158 insertions(+), 13 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 2d0c82e..5ae41b7 100644
+index 4d19052..f34633c2 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1447,14 +1447,30 @@ struct sched_dl_entity {
+@@ -1451,14 +1451,30 @@ struct sched_dl_entity {
  	 *
  	 * @dl_yielded tells if task gave up the cpu before consuming
  	 * all its available runtime during the last job.
@@ -55,7 +55,7 @@ index 2d0c82e..5ae41b7 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index d188044..d0f08ae 100644
+index c56fb57..98f9944 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2187,6 +2187,7 @@ void __dl_clear_params(struct task_struct *p)

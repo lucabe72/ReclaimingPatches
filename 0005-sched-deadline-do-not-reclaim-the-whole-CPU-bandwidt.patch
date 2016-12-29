@@ -1,4 +1,4 @@
-From 789d7a666fefe4a56e307d3065ea34db7a80b7f4 Mon Sep 17 00:00:00 2001
+From 89b4542f63b807ec87b1dbaf639c25082c1a78af Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/6] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -16,10 +16,10 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  3 files changed, 16 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 3bbfa37..08b3a41 100644
+index 5030b3c..4010af7 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -8285,6 +8285,10 @@ static void sched_dl_do_global(void)
+@@ -8286,6 +8286,10 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
