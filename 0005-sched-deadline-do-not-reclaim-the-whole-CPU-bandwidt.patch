@@ -1,7 +1,7 @@
-From 89b4542f63b807ec87b1dbaf639c25082c1a78af Mon Sep 17 00:00:00 2001
-From: Luca Abeni <lucabe72@gmail.com>
+From 81918343e0a2650ade5296eea237a3f0c35d45b2 Mon Sep 17 00:00:00 2001
+From: Luca Abeni <luca.abeni@unitn.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
-Subject: [PATCH 5/6] sched/deadline: do not reclaim the whole CPU bandwidth
+Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
 
 Original GRUB tends to reclaim 100% of the CPU time... And this
 allows a CPU hog to starve non-deadline tasks.
@@ -11,12 +11,12 @@ specified fraction of CPU time.
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
  kernel/sched/core.c     | 4 ++++
- kernel/sched/deadline.c | 7 ++++++-
+ kernel/sched/deadline.c | 6 +++++-
  kernel/sched/sched.h    | 6 ++++++
- 3 files changed, 16 insertions(+), 1 deletion(-)
+ 3 files changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 5030b3c..4010af7 100644
+index 5030b3c..6ec5e42 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -8286,6 +8286,10 @@ static void sched_dl_do_global(void)
@@ -24,39 +24,38 @@ index 5030b3c..4010af7 100644
  
  		rcu_read_unlock_sched();
 +		if (dl_b->bw == -1)
-+			cpu_rq(cpu)->dl.non_deadline_bw = 0;
++			cpu_rq(cpu)->dl.deadline_bw_inv = 1 << 8;
 +		else
-+			cpu_rq(cpu)->dl.non_deadline_bw = (1 << 20) - new_bw;
++			cpu_rq(cpu)->dl.deadline_bw_inv = to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
  	}
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 361887b..7585dfb 100644
+index cfd4608..e9d031f 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -151,6 +151,11 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -178,6 +178,10 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
 +	if (global_rt_runtime() == RUNTIME_INF)
-+		dl_rq->non_deadline_bw = 0;
++		dl_rq->deadline_bw_inv = 1 << 8;
 +	else
-+		dl_rq->non_deadline_bw = (1 << 20) -
-+			to_ratio(global_rt_period(), global_rt_runtime());
++		dl_rq->deadline_bw_inv = to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
  }
  
  #ifdef CONFIG_SMP
-@@ -773,7 +778,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -800,7 +804,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {
 -	return (delta * rq->dl.running_bw) >> 20;
-+	return (delta * (rq->dl.non_deadline_bw + rq->dl.running_bw)) >> 20;
++	return (delta * rq->dl.running_bw * rq->dl.deadline_bw_inv) >> 20 >> 8;
  }
  
  /*
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index e422803..ef4bdaa 100644
+index e422803..38028d9 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -542,6 +542,12 @@ struct dl_rq {
@@ -65,10 +64,10 @@ index e422803..ef4bdaa 100644
  	u64 running_bw;
 +
 +	/*
-+	 * Fraction of the CPU utilization that cannot be reclaimed
++	 * Inverse of the fraction of CPU utilization that can be reclaimed
 +	 * by the GRUB algorithm.
 +	 */
-+	u64 non_deadline_bw;
++	u64 deadline_bw_inv;
  };
  
  #ifdef CONFIG_SMP

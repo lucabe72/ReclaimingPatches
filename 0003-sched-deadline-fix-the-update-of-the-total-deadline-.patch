@@ -1,7 +1,7 @@
-From e01e6261eeceedd028438a3edff00cccd5229af0 Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca.abeni@unitn.it>
-Date: Mon, 21 Nov 2016 11:18:14 +0100
-Subject: [PATCH 3/6] sched/deadline: fix the update of the total -deadline
+From 8a6a299b996571bf4f2a485ba8bef335bb7e3fa6 Mon Sep 17 00:00:00 2001
+From: Luca Abeni <luca@theoden.retis>
+Date: Tue, 17 Jan 2017 11:30:25 +0100
+Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
  utilization
 
 Now that the inactive timer can be armed to fire at the 0-lag time,
@@ -12,8 +12,8 @@ dl_overflow() and __setparam_dl().
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
  kernel/sched/core.c     | 36 ++++++++++++------------------------
- kernel/sched/deadline.c | 32 +++++++++++++++++++++++---------
- 2 files changed, 35 insertions(+), 33 deletions(-)
+ kernel/sched/deadline.c | 23 +++++++++++++----------
+ 2 files changed, 25 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
 index 98f9944..5030b3c 100644
@@ -81,15 +81,15 @@ index 98f9944..5030b3c 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cdb7274..c087c3d 100644
+index 84fb86d..4951708 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -94,8 +94,14 @@ static void task_go_inactive(struct task_struct *p)
+@@ -94,8 +94,14 @@ static void task_non_contending(struct task_struct *p)
  	 */
  	if (zerolag_time < 0) {
  		sub_running_bw(dl_se, dl_rq);
 -		if (!dl_task(p))
-+		if (!dl_task(p)) {
++		if (!dl_task(p) || p->state == TASK_DEAD) {
 +			struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
 +
 +			raw_spin_lock(&dl_b->lock);
@@ -100,29 +100,29 @@ index cdb7274..c087c3d 100644
  
  		return;
  	}
-@@ -850,9 +856,14 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -877,10 +883,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
 +		struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
 +
- 		if (p->state == TASK_DEAD && dl_se->dl_non_contending)
+ 		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {
  			sub_running_bw(&p->dl, dl_rq_of_se(&p->dl));
- 
+ 			dl_se->dl_non_contending = 0;
+ 		}
++
 +		raw_spin_lock(&dl_b->lock);
 +		__dl_clear(dl_b, p->dl.dl_bw);
 +		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1375,15 +1386,18 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1385,15 +1397,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {
 -	struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
-+	if (!hrtimer_active(&p->dl.inactive_timer)) {
-+		struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
- 
+-
 -	/*
 -	 * Since we are TASK_DEAD we won't slip out of the domain!
 -	 */
@@ -130,15 +130,6 @@ index cdb7274..c087c3d 100644
 -	/* XXX we should retain the bw until 0-lag */
 -	dl_b->total_bw -= p->dl.dl_bw;
 -	raw_spin_unlock_irq(&dl_b->lock);
-+		/*
-+		 * If the "inactive timer is not active, the 0-lag time
-+		 * is already passed, so we immediately decrease the
-+		 * total deadline utilization
-+		 */
-+		raw_spin_lock_irq(&dl_b->lock);
-+		__dl_clear(dl_b, p->dl.dl_bw);
-+		raw_spin_unlock_irq(&dl_b->lock);
-+	}
  }
  
  static void set_curr_task_dl(struct rq *rq)

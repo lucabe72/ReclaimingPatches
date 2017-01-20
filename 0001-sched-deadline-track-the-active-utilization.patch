@@ -1,7 +1,7 @@
-From af41b720b910d82ac9a68af81b62d81a002e374b Mon Sep 17 00:00:00 2001
+From a35cb0c0dbeb193a72e4c03bddbf72a78cdc111b Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
-Subject: [PATCH 1/6] sched/deadline: track the active utilization
+Subject: [PATCH 1/9] sched/deadline: track the active utilization
 
 Active utilization is defined as the total utilization of active
 (TASK_RUNNING) tasks queued on a runqueue. Hence, it is increased
