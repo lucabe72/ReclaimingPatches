@@ -1,4 +1,4 @@
-From 8a6a299b996571bf4f2a485ba8bef335bb7e3fa6 Mon Sep 17 00:00:00 2001
+From f49c1141670ba6b90c50a53e83be134500802196 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca@theoden.retis>
 Date: Tue, 17 Jan 2017 11:30:25 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
@@ -81,7 +81,7 @@ index 98f9944..5030b3c 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 84fb86d..4951708 100644
+index 5b26345..f695c70 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -94,8 +94,14 @@ static void task_non_contending(struct task_struct *p)
@@ -117,7 +117,7 @@ index 84fb86d..4951708 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1385,15 +1397,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1384,15 +1396,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

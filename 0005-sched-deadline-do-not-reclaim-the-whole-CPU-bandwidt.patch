@@ -1,4 +1,4 @@
-From 81918343e0a2650ade5296eea237a3f0c35d45b2 Mon Sep 17 00:00:00 2001
+From e2e0184c79d048a602ece9cad5b65fac8fa7b19f Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -31,7 +31,7 @@ index 5030b3c..6ec5e42 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cfd4608..e9d031f 100644
+index fa6ccb2..a6b41f5 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -178,6 +178,10 @@ void init_dl_rq(struct dl_rq *dl_rq)

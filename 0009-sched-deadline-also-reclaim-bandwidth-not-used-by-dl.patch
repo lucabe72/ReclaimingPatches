@@ -1,4 +1,4 @@
-From 7b5b4243e0e4fa911651eb34942371502193414f Mon Sep 17 00:00:00 2001
+From 7ff46c9c8b843d93bf6f2e3e2840ba53f6928898 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -84,7 +84,7 @@ index 40fcd7f..0c2ded3 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index f0f82b2..90d82c8 100644
+index 9c94130..752fb0e 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -122,7 +122,7 @@ static void task_non_contending(struct task_struct *p)
@@ -137,7 +137,7 @@ index f0f82b2..90d82c8 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1897,7 +1900,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1896,7 +1899,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);

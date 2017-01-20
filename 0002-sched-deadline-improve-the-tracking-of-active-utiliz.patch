@@ -1,4 +1,4 @@
-From 94c3efb442a6179146750f36b6d2a1c77ae169dc Mon Sep 17 00:00:00 2001
+From add32a7941f3b5c1b206427c79b2f2de4b83ae25 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -14,9 +14,9 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
  include/linux/sched.h   |  18 +++++-
  kernel/sched/core.c     |   2 +
- kernel/sched/deadline.c | 166 +++++++++++++++++++++++++++++++++++++++++++-----
+ kernel/sched/deadline.c | 165 +++++++++++++++++++++++++++++++++++++++++++-----
  kernel/sched/sched.h    |   1 +
- 4 files changed, 171 insertions(+), 16 deletions(-)
+ 4 files changed, 170 insertions(+), 16 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
 index 4d19052..f34633c2 100644
@@ -75,7 +75,7 @@ index c56fb57..98f9944 100644
  
  	INIT_LIST_HEAD(&p->rt.run_list);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 23c840e..84fb86d 100644
+index 23c840e..5b26345 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,73 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -244,19 +244,11 @@ index 23c840e..84fb86d 100644
  }
  
  /*
-@@ -1065,6 +1172,7 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
- {
- 	struct task_struct *curr;
- 	struct rq *rq;
-+	int oldcpu = cpu;
- 
- 	if (sd_flag != SD_BALANCE_WAKE)
- 		goto out;
-@@ -1097,6 +1205,25 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1097,6 +1204,25 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	}
  	rcu_read_unlock();
  
-+	if ((cpu != oldcpu) && (p->dl.dl_non_contending)) {
++	if ((cpu != task_cpu(p)) && (p->dl.dl_non_contending)) {
 +		rq = task_rq(p);
 +		raw_spin_lock(&rq->lock);
 +
@@ -278,7 +270,7 @@ index 23c840e..84fb86d 100644
  out:
  	return cpu;
  }
-@@ -1743,16 +1870,25 @@ void __init init_sched_dl_class(void)
+@@ -1743,16 +1869,25 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
