@@ -1,4 +1,4 @@
-From f49c1141670ba6b90c50a53e83be134500802196 Mon Sep 17 00:00:00 2001
+From d6eb434fa03c22f8cf2cb73699cc1b31ffd1afaa Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca@theoden.retis>
 Date: Tue, 17 Jan 2017 11:30:25 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
@@ -11,12 +11,12 @@ dl_overflow() and __setparam_dl().
 
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/core.c     | 36 ++++++++++++------------------------
+ kernel/sched/core.c     | 38 ++++++++++++++------------------------
  kernel/sched/deadline.c | 23 +++++++++++++----------
- 2 files changed, 25 insertions(+), 34 deletions(-)
+ 2 files changed, 27 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 98f9944..5030b3c 100644
+index 98f9944..30f510e 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2509,9 +2509,6 @@ static inline int dl_bw_cpus(int i)
@@ -29,7 +29,13 @@ index 98f9944..5030b3c 100644
   */
  static int dl_overflow(struct task_struct *p, int policy,
  		       const struct sched_attr *attr)
-@@ -2540,11 +2537,22 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2536,15 +2533,28 @@ static int dl_overflow(struct task_struct *p, int policy,
+ 	cpus = dl_bw_cpus(task_cpu(p));
+ 	if (dl_policy(policy) && !task_has_dl_policy(p) &&
+ 	    !__dl_overflow(dl_b, cpus, 0, new_bw)) {
++		if (hrtimer_active(&p->dl.inactive_timer))
++			__dl_clear(dl_b, p->dl.dl_bw);
+ 		__dl_add(dl_b, new_bw);
  		err = 0;
  	} else if (dl_policy(policy) && task_has_dl_policy(p) &&
  		   !__dl_overflow(dl_b, cpus, p->dl.dl_bw, new_bw)) {
@@ -53,7 +59,7 @@ index 98f9944..5030b3c 100644
  		err = 0;
  	}
  	raw_spin_unlock(&dl_b->lock);
-@@ -3914,26 +3922,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
+@@ -3914,26 +3924,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
  	dl_se->dl_period = attr->sched_period ?: dl_se->dl_deadline;
  	dl_se->flags = attr->sched_flags;
  	dl_se->dl_bw = to_ratio(dl_se->dl_period, dl_se->dl_runtime);
@@ -81,14 +87,14 @@ index 98f9944..5030b3c 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 5b26345..f695c70 100644
+index 2ff6966..3e65c5a 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -94,8 +94,14 @@ static void task_non_contending(struct task_struct *p)
- 	 */
+@@ -95,8 +95,14 @@ static void task_non_contending(struct task_struct *p)
  	if (zerolag_time < 0) {
- 		sub_running_bw(dl_se, dl_rq);
--		if (!dl_task(p))
+ 		if (dl_task(p))
+ 			sub_running_bw(dl_se, dl_rq);
+-		if (!dl_task(p) || p->state == TASK_DEAD)
 +		if (!dl_task(p) || p->state == TASK_DEAD) {
 +			struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
 +
@@ -100,7 +106,7 @@ index 5b26345..f695c70 100644
  
  		return;
  	}
-@@ -877,10 +883,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -878,10 +884,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
@@ -117,7 +123,7 @@ index 5b26345..f695c70 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1384,15 +1396,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1386,15 +1398,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

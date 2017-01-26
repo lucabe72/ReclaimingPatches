@@ -1,4 +1,4 @@
-From d5ba406017f29e83a1511177e1fade18724e5f95 Mon Sep 17 00:00:00 2001
+From 08c9a5d2db9b26f11241903e358902d1c11e32c7 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Fri, 6 Jan 2017 23:07:29 +0100
 Subject: [PATCH 8/9] sched/deadline: base GRUB reclaiming on the inactive
@@ -19,10 +19,10 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
  1 file changed, 16 insertions(+), 7 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 40ff76d..9c94130 100644
+index ff9f94c..edac8fc 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -824,14 +824,23 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -827,14 +827,23 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  /*
   * This function implements the GRUB accounting rule:
   * according to the GRUB reclaiming algorithm, the runtime is
@@ -52,7 +52,7 @@ index 40ff76d..9c94130 100644
  }
  
  /*
-@@ -877,7 +886,7 @@ static void update_curr_dl(struct rq *rq)
+@@ -880,7 +889,7 @@ static void update_curr_dl(struct rq *rq)
  	sched_rt_avg_update(rq, delta_exec);
  
  	if (unlikely(dl_se->flags & SCHED_FLAG_RECLAIM))

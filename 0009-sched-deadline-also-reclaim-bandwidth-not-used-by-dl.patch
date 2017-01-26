@@ -1,4 +1,4 @@
-From 7ff46c9c8b843d93bf6f2e3e2840ba53f6928898 Mon Sep 17 00:00:00 2001
+From 7391f95b78e0b996878610dcaf23665a84ba0729 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -11,13 +11,13 @@ and does not depend on the total deadline utilization.
 
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 ---
- kernel/sched/core.c     | 19 +++++++++++--------
+ kernel/sched/core.c     | 21 ++++++++++++---------
  kernel/sched/deadline.c | 19 +++++++++++--------
  kernel/sched/sched.h    | 28 ++++++++++++++++++++++++++--
- 3 files changed, 48 insertions(+), 18 deletions(-)
+ 3 files changed, 49 insertions(+), 19 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 40fcd7f..0c2ded3 100644
+index 844e1e2..887ae9e 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2478,7 +2478,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -38,16 +38,18 @@ index 40fcd7f..0c2ded3 100644
  {
  	return 1;
  }
-@@ -2533,7 +2533,7 @@ static int dl_overflow(struct task_struct *p, int policy,
- 	cpus = dl_bw_cpus(task_cpu(p));
+@@ -2534,8 +2534,8 @@ static int dl_overflow(struct task_struct *p, int policy,
  	if (dl_policy(policy) && !task_has_dl_policy(p) &&
  	    !__dl_overflow(dl_b, cpus, 0, new_bw)) {
+ 		if (hrtimer_active(&p->dl.inactive_timer))
+-			__dl_clear(dl_b, p->dl.dl_bw);
 -		__dl_add(dl_b, new_bw);
++			__dl_clear(dl_b, p->dl.dl_bw, cpus);
 +		__dl_add(dl_b, new_bw, cpus);
  		err = 0;
  	} else if (dl_policy(policy) && task_has_dl_policy(p) &&
  		   !__dl_overflow(dl_b, cpus, p->dl.dl_bw, new_bw)) {
-@@ -2544,8 +2544,8 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2546,8 +2546,8 @@ static int dl_overflow(struct task_struct *p, int policy,
  		 * But this would require to set the task's "inactive
  		 * timer" when the task is not inactive.
  		 */
@@ -58,7 +60,7 @@ index 40fcd7f..0c2ded3 100644
  		err = 0;
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		/*
-@@ -5387,7 +5387,7 @@ int task_can_attach(struct task_struct *p,
+@@ -5389,7 +5389,7 @@ int task_can_attach(struct task_struct *p,
  			 * We will free resources in the source root_domain
  			 * later on (see set_cpus_allowed_dl()).
  			 */
@@ -67,7 +69,7 @@ index 40fcd7f..0c2ded3 100644
  		}
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  		rcu_read_unlock_sched();
-@@ -8287,10 +8287,13 @@ static void sched_dl_do_global(void)
+@@ -8289,10 +8289,13 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -84,19 +86,19 @@ index 40fcd7f..0c2ded3 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 9c94130..752fb0e 100644
+index edac8fc..576008b 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -122,7 +122,7 @@ static void task_non_contending(struct task_struct *p)
- 
- 			sub_rq_bw(&p->dl, &rq->dl);
+@@ -125,7 +125,7 @@ static void task_non_contending(struct task_struct *p)
+ 			if (p->state == TASK_DEAD)
+ 				sub_rq_bw(&p->dl, &rq->dl);
  			raw_spin_lock(&dl_b->lock);
 -			__dl_clear(dl_b, p->dl.dl_bw);
 +			__dl_clear(dl_b, p->dl.dl_bw, dl_bw_cpus(task_cpu(p)));
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -205,10 +205,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -208,10 +208,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -112,7 +114,7 @@ index 9c94130..752fb0e 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -835,12 +838,12 @@ u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
+@@ -838,12 +841,12 @@ u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
  	u64 u_act;
  
@@ -128,7 +130,7 @@ index 9c94130..752fb0e 100644
  }
  
  /*
-@@ -947,7 +950,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -950,7 +953,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -137,7 +139,7 @@ index 9c94130..752fb0e 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1896,7 +1899,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1900,7 +1903,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
