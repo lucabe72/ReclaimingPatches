@@ -1,4 +1,4 @@
-From 7391f95b78e0b996878610dcaf23665a84ba0729 Mon Sep 17 00:00:00 2001
+From fbe961f0b76683ef1b4f8c38d43ef1d9176b09cf Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -86,10 +86,10 @@ index 844e1e2..887ae9e 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index edac8fc..576008b 100644
+index 1878aa0..6271851 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -125,7 +125,7 @@ static void task_non_contending(struct task_struct *p)
+@@ -132,7 +132,7 @@ static void task_non_contending(struct task_struct *p)
  			if (p->state == TASK_DEAD)
  				sub_rq_bw(&p->dl, &rq->dl);
  			raw_spin_lock(&dl_b->lock);
@@ -98,7 +98,7 @@ index edac8fc..576008b 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -208,10 +208,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -222,10 +222,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -114,7 +114,7 @@ index edac8fc..576008b 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -838,12 +841,12 @@ u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
+@@ -852,12 +855,12 @@ u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
  	u64 u_act;
  
@@ -130,7 +130,7 @@ index edac8fc..576008b 100644
  }
  
  /*
-@@ -950,7 +953,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -964,7 +967,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -139,7 +139,7 @@ index edac8fc..576008b 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1900,7 +1903,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1914,7 +1917,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);

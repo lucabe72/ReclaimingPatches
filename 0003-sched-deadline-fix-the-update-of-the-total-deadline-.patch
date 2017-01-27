@@ -1,4 +1,4 @@
-From d6eb434fa03c22f8cf2cb73699cc1b31ffd1afaa Mon Sep 17 00:00:00 2001
+From fe05ba8efcb54c8024f2993225a39b4804dccf27 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca@theoden.retis>
 Date: Tue, 17 Jan 2017 11:30:25 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
@@ -87,10 +87,10 @@ index 98f9944..30f510e 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 2ff6966..3e65c5a 100644
+index c9bddb3..0d9f8cf 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -95,8 +95,14 @@ static void task_non_contending(struct task_struct *p)
+@@ -102,8 +102,14 @@ static void task_non_contending(struct task_struct *p)
  	if (zerolag_time < 0) {
  		if (dl_task(p))
  			sub_running_bw(dl_se, dl_rq);
@@ -106,7 +106,7 @@ index 2ff6966..3e65c5a 100644
  
  		return;
  	}
-@@ -878,10 +884,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -892,10 +898,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
@@ -123,7 +123,7 @@ index 2ff6966..3e65c5a 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1386,15 +1398,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1400,15 +1412,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

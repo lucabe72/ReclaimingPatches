@@ -1,4 +1,4 @@
-From 53a51873f21516d8fd680958e9513a22a9d1a18a Mon Sep 17 00:00:00 2001
+From 4c1c280006e034cc5e9aa8d1d666657679a4f95f Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -31,10 +31,10 @@ index 30f510e..f199aa8 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index f0647ca..ecb0e2e 100644
+index 0247f2d..9ffd531 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -179,6 +179,10 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -193,6 +193,10 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -45,7 +45,7 @@ index f0647ca..ecb0e2e 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -801,7 +805,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -815,7 +819,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {

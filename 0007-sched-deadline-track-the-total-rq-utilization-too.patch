@@ -1,6 +1,6 @@
-From dc1babf45ee17efddf32946d492d8c6a75e921ae Mon Sep 17 00:00:00 2001
+From ffc3e8255392bfeec1cc3d7087b04e63af17e319 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Fri, 20 Jan 2017 11:55:47 +0100
+Date: Fri, 27 Jan 2017 10:58:16 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
 
 The total rq utilization is defined as the sum of the utilisations of
@@ -14,7 +14,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 69 insertions(+), 19 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index e244212..ff9f94c 100644
+index cd0035e..097a77b 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -55,7 +55,7 @@ index e244212..ff9f94c 100644
  static void task_non_contending(struct task_struct *p)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -98,6 +122,8 @@ static void task_non_contending(struct task_struct *p)
+@@ -105,6 +129,8 @@ static void task_non_contending(struct task_struct *p)
  		if (!dl_task(p) || p->state == TASK_DEAD) {
  			struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
  
@@ -64,7 +64,7 @@ index e244212..ff9f94c 100644
  			raw_spin_lock(&dl_b->lock);
  			__dl_clear(dl_b, p->dl.dl_bw);
  			__dl_clear_params(p);
-@@ -112,10 +138,13 @@ static void task_non_contending(struct task_struct *p)
+@@ -119,7 +145,7 @@ static void task_non_contending(struct task_struct *p)
  	hrtimer_start(timer, ns_to_ktime(zerolag_time), HRTIMER_MODE_REL);
  }
  
@@ -73,13 +73,17 @@ index e244212..ff9f94c 100644
  {
  	struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
  
+@@ -130,6 +156,9 @@ static void task_contending(struct sched_dl_entity *dl_se)
+ 	if (!dl_prio(dl_task_of(dl_se)->normal_prio))
+ 		return;
+ 
 +	if (flags & ENQUEUE_MIGRATED)
 +		add_rq_bw(dl_se, dl_rq);
 +
  	if (dl_se->dl_non_contending) {
  		/*
  		 * If the timer handler is currently running and the
-@@ -907,6 +936,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -921,6 +950,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  
  		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {
  			sub_running_bw(&p->dl, dl_rq_of_se(&p->dl));
@@ -87,7 +91,7 @@ index e244212..ff9f94c 100644
  			dl_se->dl_non_contending = 0;
  		}
  
-@@ -1072,7 +1102,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -1086,7 +1116,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -96,7 +100,7 @@ index e244212..ff9f94c 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -1111,8 +1141,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1125,8 +1155,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		return;
  	}
  
@@ -108,7 +112,7 @@ index e244212..ff9f94c 100644
  
  	/*
  	 * If p is throttled, we do not enqueue it. In fact, if it exhausted
-@@ -1128,7 +1160,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1142,7 +1174,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
  		if (!(flags & ENQUEUE_RESTORE))
@@ -117,7 +121,7 @@ index e244212..ff9f94c 100644
  
  		return;
  	}
-@@ -1150,8 +1182,10 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1164,8 +1196,10 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
  
@@ -129,7 +133,7 @@ index e244212..ff9f94c 100644
  
  	/*
  	 * This check allows to start the inactive timer (or to immediately
-@@ -1237,22 +1271,24 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1251,22 +1285,24 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	}
  	rcu_read_unlock();
  
@@ -167,7 +171,7 @@ index e244212..ff9f94c 100644
  		raw_spin_unlock(&rq->lock);
  	}
  
-@@ -1704,7 +1740,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1718,7 +1754,9 @@ static int push_dl_task(struct rq *rq)
  
  	deactivate_task(rq, next_task, 0);
  	sub_running_bw(&next_task->dl, &rq->dl);
@@ -177,7 +181,7 @@ index e244212..ff9f94c 100644
  	add_running_bw(&next_task->dl, &later_rq->dl);
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
-@@ -1794,7 +1832,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1808,7 +1846,9 @@ static void pull_dl_task(struct rq *this_rq)
  
  			deactivate_task(src_rq, p, 0);
  			sub_running_bw(&p->dl, &src_rq->dl);
@@ -187,7 +191,7 @@ index e244212..ff9f94c 100644
  			add_running_bw(&p->dl, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -1911,7 +1951,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1925,7 +1965,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (p->dl.dl_non_contending)
  		p->dl.dl_non_contending = 0;
  
