@@ -1,4 +1,4 @@
-From 4c1c280006e034cc5e9aa8d1d666657679a4f95f Mon Sep 17 00:00:00 2001
+From e6013c2213f5b28a96ec8ab25c6ad8f1f911a4d4 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -16,10 +16,10 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  3 files changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 30f510e..f199aa8 100644
+index 0c5adf7..631cc2e 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -8288,6 +8288,10 @@ static void sched_dl_do_global(void)
+@@ -8380,6 +8380,10 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -31,10 +31,10 @@ index 30f510e..f199aa8 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 0247f2d..9ffd531 100644
+index c0563bb..cf9cb89 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -193,6 +193,10 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -191,6 +191,10 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -45,7 +45,7 @@ index 0247f2d..9ffd531 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -815,7 +819,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -813,7 +817,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {
@@ -55,7 +55,7 @@ index 0247f2d..9ffd531 100644
  
  /*
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index e422803..38028d9 100644
+index c546991..d5e0ddc 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -542,6 +542,12 @@ struct dl_rq {
