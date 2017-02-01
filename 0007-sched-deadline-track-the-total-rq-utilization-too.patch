@@ -1,4 +1,4 @@
-From fe0258da2d98aa98ece8d906de60d7bb46c723d4 Mon Sep 17 00:00:00 2001
+From 350ae64f1856e65e20f9e545a273c18dcf80cea6 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 27 Jan 2017 10:58:16 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
@@ -14,7 +14,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 69 insertions(+), 19 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 212767f..5b6239b 100644
+index 82acde3..8b57a38 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -200,7 +200,7 @@ index 212767f..5b6239b 100644
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index d5e0ddc..eb4eb1e 100644
+index 87336b7..d566a8e 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -544,6 +544,17 @@ struct dl_rq {
