@@ -1,60 +1,75 @@
-From cdbe1ec78267cef03f083b62bcf4deb06a54e133 Mon Sep 17 00:00:00 2001
+From c10ff2355ecbd5330014587e9a7b9e25c6d0fb24 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
-Subject: [PATCH 1/9] sched/deadline: track the active utilization
+Subject: [PATCH 1/6] sched/deadline: track the active utilization
 
 Active utilization is defined as the total utilization of active
-(TASK_RUNNING) tasks queued on a runqueue. Hence, it is increased
-when a task wakes up and is decreased when a task blocks.
-
-When a task is migrated from CPUi to CPUj, immediately subtract the
-task's utilization from CPUi and add it to CPUj. This mechanism is
-implemented by modifying the pull and push functions.
-Note: this is not fully correct from the theoretical point of view
-(the utilization should be removed from CPUi only at the 0 lag
-time), a more theoretically sound solution will follow.
+(TASK_RUNNING) tasks queued on all the runqueues of the root
+domain. Hence, it is increased when a task wakes up and is decreased
+when a task blocks.
 
 Signed-off-by: Juri Lelli <juri.lelli@arm.com>
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/deadline.c | 66 ++++++++++++++++++++++++++++++++++++++++++++++---
- kernel/sched/sched.h    |  6 +++++
- 2 files changed, 69 insertions(+), 3 deletions(-)
+ kernel/sched/core.c     |  3 +++
+ kernel/sched/deadline.c | 68 ++++++++++++++++++++++++++++++++++++++++++++++---
+ kernel/sched/sched.h    |  9 +++++++
+ 3 files changed, 77 insertions(+), 3 deletions(-)
 
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index c56fb57..250eb07 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -5885,6 +5885,9 @@ static int init_rootdomain(struct root_domain *rd)
+ 
+ 	if (cpupri_init(&rd->cpupri) != 0)
+ 		goto free_rto_mask;
++
++	raw_spin_lock_init(&rd->running_bw_lock);
++
+ 	return 0;
+ 
+ free_rto_mask:
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 27737f3..e2135e9 100644
+index 70ef2b1..199b36f 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -43,6 +43,28 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
+@@ -43,6 +43,34 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
  	return !RB_EMPTY_NODE(&dl_se->rb_node);
  }
  
 +static inline
 +void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
 +{
-+	u64 old = dl_rq->running_bw;
++	struct rq *rq = rq_of_dl_rq(dl_rq);
++	u64 old;
 +
-+	lockdep_assert_held(&(rq_of_dl_rq(dl_rq))->lock);
-+	dl_rq->running_bw += dl_se->dl_bw;
-+	SCHED_WARN_ON(dl_rq->running_bw < old); /* overflow */
++	raw_spin_lock(&rq->rd->running_bw_lock);
++	old = rq->rd->running_bw;
++	rq->rd->running_bw += dl_se->dl_bw;
++	SCHED_WARN_ON(rq->rd->running_bw < old); /* overflow */
++	raw_spin_unlock(&rq->rd->running_bw_lock);
 +}
 +
 +static inline
 +void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
 +{
-+	u64 old = dl_rq->running_bw;
++	struct rq *rq = rq_of_dl_rq(dl_rq);
++	u64 old;
 +
-+	lockdep_assert_held(&(rq_of_dl_rq(dl_rq))->lock);
-+	dl_rq->running_bw -= dl_se->dl_bw;
-+	SCHED_WARN_ON(dl_rq->running_bw > old); /* underflow */
-+	if (dl_rq->running_bw > old)
-+		dl_rq->running_bw = 0;
++	raw_spin_lock(&rq->rd->running_bw_lock);
++	old = rq->rd->running_bw;
++	rq->rd->running_bw -= dl_se->dl_bw;
++	SCHED_WARN_ON(rq->rd->running_bw > old); /* underflow */
++	if (rq->rd->running_bw > old)
++		rq->rd->running_bw = 0;
++	raw_spin_unlock(&rq->rd->running_bw_lock);
 +}
 +
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -909,8 +931,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -909,8 +937,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * parameters of the task might need updating. Otherwise,
  	 * we want a replenishment of its runtime.
  	 */
@@ -68,7 +83,7 @@ index 27737f3..e2135e9 100644
  	else if (flags & ENQUEUE_REPLENISH)
  		replenish_dl_entity(dl_se, pi_se);
  
-@@ -947,14 +973,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -947,14 +979,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		return;
  	}
  
@@ -96,7 +111,7 @@ index 27737f3..e2135e9 100644
  
  	enqueue_dl_entity(&p->dl, pi_se, flags);
  
-@@ -972,6 +1009,21 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -972,6 +1015,21 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  {
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
@@ -118,27 +133,7 @@ index 27737f3..e2135e9 100644
  }
  
  /*
-@@ -1501,7 +1553,9 @@ static int push_dl_task(struct rq *rq)
- 	}
- 
- 	deactivate_task(rq, next_task, 0);
-+	sub_running_bw(&next_task->dl, &rq->dl);
- 	set_task_cpu(next_task, later_rq->cpu);
-+	add_running_bw(&next_task->dl, &later_rq->dl);
- 	activate_task(later_rq, next_task, 0);
- 	ret = 1;
- 
-@@ -1589,7 +1643,9 @@ static void pull_dl_task(struct rq *this_rq)
- 			resched = true;
- 
- 			deactivate_task(src_rq, p, 0);
-+			sub_running_bw(&p->dl, &src_rq->dl);
- 			set_task_cpu(p, this_cpu);
-+			add_running_bw(&p->dl, &this_rq->dl);
- 			activate_task(this_rq, p, 0);
- 			dmin = p->dl.deadline;
- 
-@@ -1695,6 +1751,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1695,6 +1753,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (!start_dl_timer(p))
  		__dl_clear_params(p);
  
@@ -148,7 +143,7 @@ index 27737f3..e2135e9 100644
  	/*
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
-@@ -1712,6 +1771,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1712,6 +1773,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -157,22 +152,25 @@ index 27737f3..e2135e9 100644
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 4f89d4c..df62136 100644
+index 7b34c78..470890e 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -536,6 +536,12 @@ struct dl_rq {
- #else
- 	struct dl_bw dl_bw;
- #endif
+@@ -580,6 +580,15 @@ struct root_domain {
+ 	struct cpupri cpupri;
+ 
+ 	unsigned long max_cpu_capacity;
++
 +	/*
-+	 * "Active utilization" for this runqueue: increased when a
-+	 * task wakes up (becomes TASK_RUNNING) and decreased when a
++	 * "Active utilization" for this root domain (global active
++	 * utilization): increased when a task wakes up (becomes
++	 * TASK_RUNNING) and decreased when a
 +	 * task blocks
 +	 */
-+	u64 running_bw;
++	u32 running_bw;
++	raw_spinlock_t running_bw_lock;
  };
  
- #ifdef CONFIG_SMP
+ extern struct root_domain def_root_domain;
 -- 
 2.7.4
 

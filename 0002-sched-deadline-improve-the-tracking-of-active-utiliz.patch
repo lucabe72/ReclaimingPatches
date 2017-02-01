@@ -1,7 +1,7 @@
-From 5703ea806d955fc6b02dadeb54a2fd97e4049a08 Mon Sep 17 00:00:00 2001
+From 8cdf65c7446780cb325d1d69db9c527a6a3284c4 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
-Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
+Subject: [PATCH 2/6] sched/deadline: improve the tracking of active
  utilization
 
 This patch implements a more theoretically sound algorithm for
@@ -19,10 +19,10 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  4 files changed, 188 insertions(+), 20 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 48954b0..0490fb7 100644
+index 4d19052..f34633c2 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1445,14 +1445,30 @@ struct sched_dl_entity {
+@@ -1451,14 +1451,30 @@ struct sched_dl_entity {
  	 *
  	 * @dl_yielded tells if task gave up the cpu before consuming
  	 * all its available runtime during the last job.
@@ -55,10 +55,10 @@ index 48954b0..0490fb7 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index dd659b7..98fd131 100644
+index 250eb07..af25bbe 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2210,6 +2210,7 @@ void __dl_clear_params(struct task_struct *p)
+@@ -2187,6 +2187,7 @@ void __dl_clear_params(struct task_struct *p)
  
  	dl_se->dl_throttled = 0;
  	dl_se->dl_yielded = 0;
@@ -66,7 +66,7 @@ index dd659b7..98fd131 100644
  }
  
  /*
-@@ -2241,6 +2242,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
+@@ -2218,6 +2219,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
  
  	RB_CLEAR_NODE(&p->dl.rb_node);
  	init_dl_task_timer(&p->dl);
@@ -75,11 +75,11 @@ index dd659b7..98fd131 100644
  
  	INIT_LIST_HEAD(&p->rt.run_list);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index e2135e9..1a78fb5 100644
+index 199b36f..3edfb7b 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -65,6 +65,86 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
- 		dl_rq->running_bw = 0;
+@@ -71,6 +71,86 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
+ 	raw_spin_unlock(&rq->rd->running_bw_lock);
  }
  
 +static void task_non_contending(struct task_struct *p)
@@ -165,7 +165,7 @@ index e2135e9..1a78fb5 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -610,10 +690,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
+@@ -616,10 +696,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
  	 * The task might have changed its scheduling policy to something
  	 * different than SCHED_DEADLINE (through switched_from_dl()).
  	 */
@@ -177,7 +177,7 @@ index e2135e9..1a78fb5 100644
  
  	/*
  	 * The task might have been boosted by someone else and might be in the
-@@ -800,6 +878,49 @@ static void update_curr_dl(struct rq *rq)
+@@ -806,6 +884,49 @@ static void update_curr_dl(struct rq *rq)
  	}
  }
  
@@ -227,7 +227,7 @@ index e2135e9..1a78fb5 100644
  #ifdef CONFIG_SMP
  
  static void inc_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
-@@ -932,9 +1053,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -938,9 +1059,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -238,7 +238,7 @@ index e2135e9..1a78fb5 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -973,7 +1092,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -979,7 +1098,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		return;
  	}
  
@@ -247,7 +247,7 @@ index e2135e9..1a78fb5 100644
  		add_running_bw(&p->dl, &rq->dl);
  
  	/*
-@@ -989,7 +1108,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -995,7 +1114,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
@@ -258,7 +258,7 @@ index e2135e9..1a78fb5 100644
  		return;
  	}
  
-@@ -1010,7 +1131,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1016,7 +1137,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
  
@@ -267,7 +267,7 @@ index e2135e9..1a78fb5 100644
  		sub_running_bw(&p->dl, &rq->dl);
  
  	/*
-@@ -1023,7 +1144,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1029,7 +1150,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * or "inactive")
  	 */
  	if (flags & DEQUEUE_SLEEP)
@@ -276,7 +276,7 @@ index e2135e9..1a78fb5 100644
  }
  
  /*
-@@ -1097,6 +1218,25 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1103,6 +1224,25 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	}
  	rcu_read_unlock();
  
@@ -302,7 +302,7 @@ index e2135e9..1a78fb5 100644
  out:
  	return cpu;
  }
-@@ -1743,16 +1883,24 @@ void __init init_sched_dl_class(void)
+@@ -1745,16 +1885,24 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -335,7 +335,7 @@ index e2135e9..1a78fb5 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1771,7 +1919,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1773,7 +1921,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -346,10 +346,10 @@ index e2135e9..1a78fb5 100644
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index df62136..55e4dac 100644
+index 470890e..b28a75a 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -1449,6 +1449,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
+@@ -1370,6 +1370,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
  extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
