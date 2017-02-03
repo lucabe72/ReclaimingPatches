@@ -1,4 +1,4 @@
-From dfd4bd5e7a473929783feaf71bddb267232b6160 Mon Sep 17 00:00:00 2001
+From 7e2c288764574f3651e41a354246cfebb724a877 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca@theoden.retis>
 Date: Tue, 17 Jan 2017 11:30:25 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
@@ -16,10 +16,10 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 27 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 98fd131..62dde0c 100644
+index 98f9944..30f510e 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2532,9 +2532,6 @@ static inline int dl_bw_cpus(int i)
+@@ -2509,9 +2509,6 @@ static inline int dl_bw_cpus(int i)
   * allocated bandwidth to reflect the new situation.
   *
   * This function is called while holding p's rq->lock.
@@ -29,7 +29,7 @@ index 98fd131..62dde0c 100644
   */
  static int dl_overflow(struct task_struct *p, int policy,
  		       const struct sched_attr *attr)
-@@ -2559,15 +2556,28 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2536,15 +2533,28 @@ static int dl_overflow(struct task_struct *p, int policy,
  	cpus = dl_bw_cpus(task_cpu(p));
  	if (dl_policy(policy) && !task_has_dl_policy(p) &&
  	    !__dl_overflow(dl_b, cpus, 0, new_bw)) {
@@ -59,7 +59,7 @@ index 98fd131..62dde0c 100644
  		err = 0;
  	}
  	raw_spin_unlock(&dl_b->lock);
-@@ -3985,26 +3995,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
+@@ -3914,26 +3924,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
  	dl_se->dl_period = attr->sched_period ?: dl_se->dl_deadline;
  	dl_se->flags = attr->sched_flags;
  	dl_se->dl_bw = to_ratio(dl_se->dl_period, dl_se->dl_runtime);
@@ -87,7 +87,7 @@ index 98fd131..62dde0c 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 1a78fb5..861d656a 100644
+index 51156518..5023229 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -100,8 +100,14 @@ static void task_non_contending(struct task_struct *p)
@@ -123,7 +123,7 @@ index 1a78fb5..861d656a 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1398,15 +1410,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1401,15 +1413,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

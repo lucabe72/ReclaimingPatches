@@ -1,4 +1,4 @@
-From 265dd3557e69aefffa4699eaf30c95f721b5b383 Mon Sep 17 00:00:00 2001
+From 156a12f92c91ff75e337de9ff0d1f0d689d1988c Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Fri, 6 Jan 2017 23:07:29 +0100
 Subject: [PATCH 8/9] sched/deadline: base GRUB reclaiming on the inactive
@@ -21,10 +21,10 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
  3 files changed, 16 insertions(+), 21 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index ecc7006..8de3b79 100644
+index 844e1e2..327699c 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -8393,10 +8393,6 @@ static void sched_dl_do_global(void)
+@@ -8289,10 +8289,6 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -36,7 +36,7 @@ index ecc7006..8de3b79 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 8b57a38..756c619 100644
+index 7a04526..9ec2ffc 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -220,10 +220,6 @@ void init_dl_rq(struct dl_rq *dl_rq)
@@ -90,7 +90,7 @@ index 8b57a38..756c619 100644
  
  throttle:
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index d566a8e..6e8ab66 100644
+index 28464aa..dc06c48 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -553,12 +553,6 @@ struct dl_rq {

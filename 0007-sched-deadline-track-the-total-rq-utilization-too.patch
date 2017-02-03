@@ -1,6 +1,6 @@
-From 350ae64f1856e65e20f9e545a273c18dcf80cea6 Mon Sep 17 00:00:00 2001
+From 7769ea91bfed65b88ce0e6d1ed24e52a1708876d Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Fri, 27 Jan 2017 10:58:16 +0100
+Date: Fri, 3 Feb 2017 13:29:09 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
 
 The total rq utilization is defined as the sum of the utilisations of
@@ -14,7 +14,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 69 insertions(+), 19 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 82acde3..8b57a38 100644
+index 816c481..7a04526 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -133,12 +133,12 @@ index 82acde3..8b57a38 100644
  
  	/*
  	 * This check allows to start the inactive timer (or to immediately
-@@ -1249,22 +1283,24 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
- 	}
- 	rcu_read_unlock();
+@@ -1255,22 +1289,24 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  
--	if ((cpu != task_cpu(p)) && (p->dl.dl_non_contending)) {
-+	if (cpu != task_cpu(p)) {
+ static void migrate_task_rq_dl(struct task_struct *p)
+ {
+-	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
++	if (p->state == TASK_WAKING) {
  		rq = task_rq(p);
  		raw_spin_lock(&rq->lock);
  
@@ -170,8 +170,8 @@ index 82acde3..8b57a38 100644
 +		sub_rq_bw(&p->dl, &rq->dl);
  		raw_spin_unlock(&rq->lock);
  	}
- 
-@@ -1716,7 +1752,9 @@ static int push_dl_task(struct rq *rq)
+ }
+@@ -1719,7 +1755,9 @@ static int push_dl_task(struct rq *rq)
  
  	deactivate_task(rq, next_task, 0);
  	sub_running_bw(&next_task->dl, &rq->dl);
@@ -181,7 +181,7 @@ index 82acde3..8b57a38 100644
  	add_running_bw(&next_task->dl, &later_rq->dl);
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
-@@ -1806,7 +1844,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1809,7 +1847,9 @@ static void pull_dl_task(struct rq *this_rq)
  
  			deactivate_task(src_rq, p, 0);
  			sub_running_bw(&p->dl, &src_rq->dl);
@@ -191,7 +191,7 @@ index 82acde3..8b57a38 100644
  			add_running_bw(&p->dl, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -1923,7 +1963,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1926,7 +1966,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (p->dl.dl_non_contending)
  		p->dl.dl_non_contending = 0;
  
@@ -200,7 +200,7 @@ index 82acde3..8b57a38 100644
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 87336b7..d566a8e 100644
+index 38028d9..28464aa 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -544,6 +544,17 @@ struct dl_rq {

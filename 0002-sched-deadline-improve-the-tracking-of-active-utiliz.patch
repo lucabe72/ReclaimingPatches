@@ -1,4 +1,4 @@
-From 5703ea806d955fc6b02dadeb54a2fd97e4049a08 Mon Sep 17 00:00:00 2001
+From 5bdc88e9d519c51405d10b4e092f10431127b4c4 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -14,15 +14,15 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
  include/linux/sched.h   |  18 ++++-
  kernel/sched/core.c     |   2 +
- kernel/sched/deadline.c | 187 +++++++++++++++++++++++++++++++++++++++++++-----
+ kernel/sched/deadline.c | 191 +++++++++++++++++++++++++++++++++++++++++++-----
  kernel/sched/sched.h    |   1 +
- 4 files changed, 188 insertions(+), 20 deletions(-)
+ 4 files changed, 192 insertions(+), 20 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 48954b0..0490fb7 100644
+index 4d19052..f34633c2 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -1445,14 +1445,30 @@ struct sched_dl_entity {
+@@ -1451,14 +1451,30 @@ struct sched_dl_entity {
  	 *
  	 * @dl_yielded tells if task gave up the cpu before consuming
  	 * all its available runtime during the last job.
@@ -55,10 +55,10 @@ index 48954b0..0490fb7 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index dd659b7..98fd131 100644
+index c56fb57..98f9944 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2210,6 +2210,7 @@ void __dl_clear_params(struct task_struct *p)
+@@ -2187,6 +2187,7 @@ void __dl_clear_params(struct task_struct *p)
  
  	dl_se->dl_throttled = 0;
  	dl_se->dl_yielded = 0;
@@ -66,7 +66,7 @@ index dd659b7..98fd131 100644
  }
  
  /*
-@@ -2241,6 +2242,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
+@@ -2218,6 +2219,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
  
  	RB_CLEAR_NODE(&p->dl.rb_node);
  	init_dl_task_timer(&p->dl);
@@ -75,7 +75,7 @@ index dd659b7..98fd131 100644
  
  	INIT_LIST_HEAD(&p->rt.run_list);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index e2135e9..1a78fb5 100644
+index 23c840e..51156518 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,86 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -276,11 +276,13 @@ index e2135e9..1a78fb5 100644
  }
  
  /*
-@@ -1097,6 +1218,25 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
- 	}
- 	rcu_read_unlock();
+@@ -1101,6 +1222,28 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+ 	return cpu;
+ }
  
-+	if ((cpu != task_cpu(p)) && (p->dl.dl_non_contending)) {
++static void migrate_task_rq_dl(struct task_struct *p)
++{
++	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
 +		rq = task_rq(p);
 +		raw_spin_lock(&rq->lock);
 +
@@ -298,11 +300,12 @@ index e2135e9..1a78fb5 100644
 +
 +		raw_spin_unlock(&rq->lock);
 +	}
++}
 +
- out:
- 	return cpu;
- }
-@@ -1743,16 +1883,24 @@ void __init init_sched_dl_class(void)
+ static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
+ {
+ 	/*
+@@ -1743,16 +1886,24 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -335,7 +338,7 @@ index e2135e9..1a78fb5 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1771,7 +1919,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1771,7 +1922,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -345,11 +348,19 @@ index e2135e9..1a78fb5 100644
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
+@@ -1847,6 +1999,7 @@ const struct sched_class dl_sched_class = {
+ 
+ #ifdef CONFIG_SMP
+ 	.select_task_rq		= select_task_rq_dl,
++	.migrate_task_rq	= migrate_task_rq_dl,
+ 	.set_cpus_allowed       = set_cpus_allowed_dl,
+ 	.rq_online              = rq_online_dl,
+ 	.rq_offline             = rq_offline_dl,
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index df62136..55e4dac 100644
+index 0659772..e422803 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -1449,6 +1449,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
+@@ -1367,6 +1367,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
  extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
