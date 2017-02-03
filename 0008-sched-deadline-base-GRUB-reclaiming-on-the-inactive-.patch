@@ -1,4 +1,4 @@
-From 156a12f92c91ff75e337de9ff0d1f0d689d1988c Mon Sep 17 00:00:00 2001
+From d82bc5f2dda4eae387049ca68df94e7a9588854c Mon Sep 17 00:00:00 2001
 From: Luca Abeni <lucabe72@gmail.com>
 Date: Fri, 6 Jan 2017 23:07:29 +0100
 Subject: [PATCH 8/9] sched/deadline: base GRUB reclaiming on the inactive
@@ -36,7 +36,7 @@ index 844e1e2..327699c 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 7a04526..9ec2ffc 100644
+index 0476457..e31f892 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -220,10 +220,6 @@ void init_dl_rq(struct dl_rq *dl_rq)

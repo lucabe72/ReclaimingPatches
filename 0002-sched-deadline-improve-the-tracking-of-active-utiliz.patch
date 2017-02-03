@@ -1,4 +1,4 @@
-From 5bdc88e9d519c51405d10b4e092f10431127b4c4 Mon Sep 17 00:00:00 2001
+From c646a885aa2fa10e3a275e09fe0b72ffaea0c6b1 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -75,7 +75,7 @@ index c56fb57..98f9944 100644
  
  	INIT_LIST_HEAD(&p->rt.run_list);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 23c840e..51156518 100644
+index 23c840e..c91b083 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,86 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -283,7 +283,7 @@ index 23c840e..51156518 100644
 +static void migrate_task_rq_dl(struct task_struct *p)
 +{
 +	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
-+		rq = task_rq(p);
++		struct rq *rq = task_rq(p);
 +		raw_spin_lock(&rq->lock);
 +
 +		sub_running_bw(&p->dl, &rq->dl);

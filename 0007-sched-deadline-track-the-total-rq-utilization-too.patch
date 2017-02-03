@@ -1,6 +1,6 @@
-From 7769ea91bfed65b88ce0e6d1ed24e52a1708876d Mon Sep 17 00:00:00 2001
+From eca9a0b61649fb1fa32dbb6c2d65eef737fc459b Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Fri, 3 Feb 2017 13:29:09 +0100
+Date: Fri, 3 Feb 2017 13:53:10 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
 
 The total rq utilization is defined as the sum of the utilisations of
@@ -9,12 +9,12 @@ tasks that are "assigned" to a runqueue, independently from their state
 
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/deadline.c | 77 +++++++++++++++++++++++++++++++++++++------------
+ kernel/sched/deadline.c | 79 ++++++++++++++++++++++++++++++++++++-------------
  kernel/sched/sched.h    | 11 +++++++
- 2 files changed, 69 insertions(+), 19 deletions(-)
+ 2 files changed, 70 insertions(+), 20 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 816c481..7a04526 100644
+index 35c8236..0476457 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -139,9 +139,9 @@ index 816c481..7a04526 100644
  {
 -	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
 +	if (p->state == TASK_WAKING) {
- 		rq = task_rq(p);
- 		raw_spin_lock(&rq->lock);
- 
+ 		struct rq *rq = task_rq(p);
+-		raw_spin_lock(&rq->lock);
+-
 -		sub_running_bw(&p->dl, &rq->dl);
 -		p->dl.dl_non_contending = 0;
 -		/*
@@ -153,7 +153,8 @@ index 816c481..7a04526 100644
 -		 */
 -		if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
 -			put_task_struct(p);
--
+ 
++		raw_spin_lock(&rq->lock);
 +		if (p->dl.dl_non_contending) {
 +			sub_running_bw(&p->dl, &rq->dl);
 +			p->dl.dl_non_contending = 0;
