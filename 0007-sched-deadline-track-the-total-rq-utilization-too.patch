@@ -1,4 +1,4 @@
-From eca9a0b61649fb1fa32dbb6c2d65eef737fc459b Mon Sep 17 00:00:00 2001
+From 5132be6be8e5849fd659d4355ba47faf4dd7802e Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 3 Feb 2017 13:53:10 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
@@ -14,7 +14,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 70 insertions(+), 20 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 35c8236..0476457 100644
+index ce3e092..c4c9de8 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -172,7 +172,7 @@ index 35c8236..0476457 100644
  		raw_spin_unlock(&rq->lock);
  	}
  }
-@@ -1719,7 +1755,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1718,7 +1754,9 @@ static int push_dl_task(struct rq *rq)
  
  	deactivate_task(rq, next_task, 0);
  	sub_running_bw(&next_task->dl, &rq->dl);
@@ -182,7 +182,7 @@ index 35c8236..0476457 100644
  	add_running_bw(&next_task->dl, &later_rq->dl);
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
-@@ -1809,7 +1847,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1808,7 +1846,9 @@ static void pull_dl_task(struct rq *this_rq)
  
  			deactivate_task(src_rq, p, 0);
  			sub_running_bw(&p->dl, &src_rq->dl);
@@ -192,7 +192,7 @@ index 35c8236..0476457 100644
  			add_running_bw(&p->dl, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -1926,7 +1966,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1925,7 +1965,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (p->dl.dl_non_contending)
  		p->dl.dl_non_contending = 0;
  
@@ -201,10 +201,10 @@ index 35c8236..0476457 100644
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 38028d9..28464aa 100644
+index 68d1203..0ffb281 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -544,6 +544,17 @@ struct dl_rq {
+@@ -566,6 +566,17 @@ struct dl_rq {
  	u64 running_bw;
  
  	/*

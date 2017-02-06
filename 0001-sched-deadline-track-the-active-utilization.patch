@@ -1,4 +1,4 @@
-From f409a84a6904a39fc7a3595f81e46b7f6e90e652 Mon Sep 17 00:00:00 2001
+From 8559f0a88a3f6652baefe5123a50a2500f7b080f Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
 Subject: [PATCH 1/9] sched/deadline: track the active utilization
@@ -22,7 +22,7 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
  2 files changed, 69 insertions(+), 3 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 70ef2b1..23c840e 100644
+index 99b2c33..03f22da 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -43,6 +43,28 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
@@ -118,7 +118,7 @@ index 70ef2b1..23c840e 100644
  }
  
  /*
-@@ -1501,7 +1553,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1500,7 +1552,9 @@ static int push_dl_task(struct rq *rq)
  	}
  
  	deactivate_task(rq, next_task, 0);
@@ -128,7 +128,7 @@ index 70ef2b1..23c840e 100644
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
  
-@@ -1589,7 +1643,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1588,7 +1642,9 @@ static void pull_dl_task(struct rq *this_rq)
  			resched = true;
  
  			deactivate_task(src_rq, p, 0);
@@ -138,7 +138,7 @@ index 70ef2b1..23c840e 100644
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
  
-@@ -1695,6 +1751,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1694,6 +1750,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (!start_dl_timer(p))
  		__dl_clear_params(p);
  
@@ -148,7 +148,7 @@ index 70ef2b1..23c840e 100644
  	/*
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
-@@ -1712,6 +1771,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1711,6 +1770,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -157,10 +157,10 @@ index 70ef2b1..23c840e 100644
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 7b34c78..0659772 100644
+index 207fc1f..223ab04 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -536,6 +536,12 @@ struct dl_rq {
+@@ -558,6 +558,12 @@ struct dl_rq {
  #else
  	struct dl_bw dl_bw;
  #endif
