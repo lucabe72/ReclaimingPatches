@@ -1,4 +1,4 @@
-From 9ed1c04fbf3971b028734f77e0640cfaa4e32896 Mon Sep 17 00:00:00 2001
+From 950bb7fee5efca69c1fd50d3a49fb194db7d5b7b Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -12,9 +12,9 @@ and does not depend on the total deadline utilization.
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/core.c     | 21 ++++++++++++---------
- kernel/sched/deadline.c | 26 +++++++++++++++++---------
- kernel/sched/sched.h    | 29 +++++++++++++++++++++++++++--
- 3 files changed, 56 insertions(+), 20 deletions(-)
+ kernel/sched/deadline.c | 22 +++++++++++++---------
+ kernel/sched/sched.h    | 28 ++++++++++++++++++++++++++--
+ 3 files changed, 51 insertions(+), 20 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
 index 9714e79..19b1fff 100644
@@ -86,24 +86,19 @@ index 9714e79..19b1fff 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 071085e..4058b4a 100644
+index 071085e..61f308a 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -128,9 +128,12 @@ static void task_non_contending(struct task_struct *p)
- 			struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
- 
+@@ -130,7 +130,7 @@ static void task_non_contending(struct task_struct *p)
  			if (p->state == TASK_DEAD)
-+{
  				sub_rq_bw(&p->dl, &rq->dl);
-+printk_deferred("Task %d ending with zerolag time < 0: %lld %lld\n", p->pid, rq->dl.this_bw, rq->dl.running_bw);
-+}
  			raw_spin_lock(&dl_b->lock);
 -			__dl_clear(dl_b, p->dl.dl_bw);
 +			__dl_clear(dl_b, p->dl.dl_bw, dl_bw_cpus(task_cpu(p)));
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -220,10 +223,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -220,10 +220,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -119,7 +114,7 @@ index 071085e..4058b4a 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -849,11 +855,12 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -849,11 +852,12 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
  	u64 u_act;
@@ -136,11 +131,8 @@ index 071085e..4058b4a 100644
  
  	return (delta * u_act) >> 20;
  }
-@@ -960,9 +967,10 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
- 			sub_rq_bw(&p->dl, dl_rq_of_se(&p->dl));
- 			dl_se->dl_non_contending = 0;
+@@ -962,7 +966,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
-+if (p->state == TASK_DEAD) printk_deferred("Inactive timer for dead task %d: %lld %lld\n", p->pid, dl_rq_of_se(&p->dl)->this_bw, dl_rq_of_se(&p->dl)->running_bw);
  
  		raw_spin_lock(&dl_b->lock);
 -		__dl_clear(dl_b, p->dl.dl_bw);
@@ -148,7 +140,7 @@ index 071085e..4058b4a 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1914,7 +1922,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1914,7 +1918,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
@@ -158,10 +150,10 @@ index 071085e..4058b4a 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 0ffb281..11ed970 100644
+index 0ffb281..bbcf809 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -219,22 +219,28 @@ static inline int dl_bandwidth_enabled(void)
+@@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
  }
  
  extern struct dl_bw *dl_bw_of(int i);
@@ -178,7 +170,6 @@ index 0ffb281..11ed970 100644
 -void __dl_clear(struct dl_bw *dl_b, u64 tsk_bw)
 +void __dl_clear(struct dl_bw *dl_b, u64 tsk_bw, int cpus)
  {
-+printk_deferred("Total BW: %lld -> %lld\n", dl_b->total_bw, dl_b->total_bw - tsk_bw);
  	dl_b->total_bw -= tsk_bw;
 +	__dl_update(dl_b, tsk_bw / cpus);
  }
@@ -192,7 +183,7 @@ index 0ffb281..11ed970 100644
  }
  
  static inline
-@@ -575,6 +581,7 @@ struct dl_rq {
+@@ -575,6 +580,7 @@ struct dl_rq {
  	 * runqueue (inactive utilization = this_bw - running_bw).
  	 */
  	u64 this_bw;
@@ -200,7 +191,7 @@ index 0ffb281..11ed970 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1891,6 +1898,24 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1891,6 +1897,24 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
