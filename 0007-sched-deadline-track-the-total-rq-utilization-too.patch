@@ -1,4 +1,4 @@
-From 5132be6be8e5849fd659d4355ba47faf4dd7802e Mon Sep 17 00:00:00 2001
+From fc86f63a962abfc5e5e6663d11ceb8542986e14b Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 3 Feb 2017 13:53:10 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too

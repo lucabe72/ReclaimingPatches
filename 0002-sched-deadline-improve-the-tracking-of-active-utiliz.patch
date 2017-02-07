@@ -1,4 +1,4 @@
-From 318e534d138c3fc5515018ef0b2d3f10c7005256 Mon Sep 17 00:00:00 2001
+From cabed6b6eec510905e953037eb5b3c687dee7d7a Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Mon, 21 Nov 2016 14:52:50 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -12,19 +12,19 @@ active utilization at the so called "0-lag time".
 
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- include/linux/sched.h   |  18 ++++-
+ include/linux/sched.h   |  17 +++++
  kernel/sched/core.c     |   2 +
  kernel/sched/deadline.c | 191 +++++++++++++++++++++++++++++++++++++++++++-----
  kernel/sched/sched.h    |   1 +
- 4 files changed, 192 insertions(+), 20 deletions(-)
+ 4 files changed, 192 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index f541a57..510b5a5 100644
+index 2cc4d79..6ec049f 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
-@@ -435,14 +435,30 @@ struct sched_dl_entity {
+@@ -445,16 +445,33 @@ struct sched_dl_entity {
  	 *
- 	 * @dl_yielded tells if task gave up the cpu before consuming
+ 	 * @dl_yielded tells if task gave up the CPU before consuming
  	 * all its available runtime during the last job.
 +	 *
 +	 * @dl_non_contending tells if task is inactive while still
@@ -34,14 +34,16 @@ index f541a57..510b5a5 100644
 +	 * conditions between the inactive timer handler and the wakeup
 +	 * code.
  	 */
--	int dl_throttled, dl_boosted, dl_yielded;
-+	int dl_throttled, dl_boosted, dl_yielded, dl_non_contending;
+ 	int				dl_throttled;
+ 	int				dl_boosted;
+ 	int				dl_yielded;
++	int				dl_non_contending;
  
  	/*
  	 * Bandwidth enforcement timer. Each -deadline task has its
  	 * own bandwidth to be enforced, thus we need one timer per task.
  	 */
- 	struct hrtimer dl_timer;
+ 	struct hrtimer			dl_timer;
 +
 +	/*
 +	 * Inactive timer, responsible for decreasing the active utilization

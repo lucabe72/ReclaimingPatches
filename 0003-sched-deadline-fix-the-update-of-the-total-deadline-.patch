@@ -1,4 +1,4 @@
-From 5088b4b9d7941501c12fd6b01f6cc3539d921dbb Mon Sep 17 00:00:00 2001
+From 35d01305ff9efef9b7ccfdefba1eaec1da8e13fa Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca@theoden.retis>
 Date: Tue, 17 Jan 2017 11:30:25 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
