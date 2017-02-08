@@ -1,4 +1,4 @@
-From 950bb7fee5efca69c1fd50d3a49fb194db7d5b7b Mon Sep 17 00:00:00 2001
+From 622d30b52faa41fd833800291bedc08e334d0426 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -13,8 +13,8 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/core.c     | 21 ++++++++++++---------
  kernel/sched/deadline.c | 22 +++++++++++++---------
- kernel/sched/sched.h    | 28 ++++++++++++++++++++++++++--
- 3 files changed, 51 insertions(+), 20 deletions(-)
+ kernel/sched/sched.h    | 36 ++++++++++++++++++++++++++++++++++--
+ 3 files changed, 59 insertions(+), 20 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
 index 9714e79..19b1fff 100644
@@ -150,7 +150,7 @@ index 071085e..61f308a 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 0ffb281..bbcf809 100644
+index 0ffb281..8416506 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -171,7 +171,7 @@ index 0ffb281..bbcf809 100644
 +void __dl_clear(struct dl_bw *dl_b, u64 tsk_bw, int cpus)
  {
  	dl_b->total_bw -= tsk_bw;
-+	__dl_update(dl_b, tsk_bw / cpus);
++	__dl_update(dl_b, (u32)tsk_bw / cpus);
  }
  
  static inline
@@ -179,7 +179,7 @@ index 0ffb281..bbcf809 100644
 +void __dl_add(struct dl_bw *dl_b, u64 tsk_bw, int cpus)
  {
  	dl_b->total_bw += tsk_bw;
-+	__dl_update(dl_b, -(tsk_bw / cpus));
++	__dl_update(dl_b, -((u32)tsk_bw / cpus));
  }
  
  static inline
@@ -191,11 +191,12 @@ index 0ffb281..bbcf809 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1891,6 +1897,24 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1891,6 +1897,32 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
 +
++#ifdef CONFIG_SMP
 +static inline
 +void __dl_update(struct dl_bw *dl_b, s64 bw)
 +{
@@ -210,7 +211,14 @@ index 0ffb281..bbcf809 100644
 +		rq->dl.extra_bw += bw;
 +	}
 +}
-+
++#else
++static inline
++void __dl_update(struct dl_bw *dl_b, s64 bw)
++{
++	struct dl_rq *dl = container_of(dl_b, struct dl_rq, dl_bw);
++	dl->extra_bw += bw;
++}
++#endif
 +
 +
  #ifdef CONFIG_IRQ_TIME_ACCOUNTING
