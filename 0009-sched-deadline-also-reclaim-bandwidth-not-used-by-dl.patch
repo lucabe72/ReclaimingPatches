@@ -1,4 +1,4 @@
-From 71c6b0041e417d2809236999bfd6aaabb1d12609 Mon Sep 17 00:00:00 2001
+From af7b9859c23a8d6a3040cf04690605c18eef8f9c Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -86,7 +86,7 @@ index 9714e79..19b1fff 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 071085e..d87d082 100644
+index 071085e..6e53c43 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -130,7 +130,7 @@ static void task_non_contending(struct task_struct *p)
@@ -120,7 +120,7 @@ index 071085e..d87d082 100644
  {
 -	u64 u_act;
 +	s64 u_act;
-+	u64 u_act_min;
++	s64 u_act_min;
  
 -	if (rq->dl.this_bw - rq->dl.running_bw > (1 << 20) - u)
 -		u_act = u;
