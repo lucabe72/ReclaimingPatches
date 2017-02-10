@@ -1,4 +1,4 @@
-From 622d30b52faa41fd833800291bedc08e334d0426 Mon Sep 17 00:00:00 2001
+From 71c6b0041e417d2809236999bfd6aaabb1d12609 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 20 Jan 2017 09:41:23 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -12,9 +12,9 @@ and does not depend on the total deadline utilization.
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/core.c     | 21 ++++++++++++---------
- kernel/sched/deadline.c | 22 +++++++++++++---------
+ kernel/sched/deadline.c | 24 ++++++++++++++----------
  kernel/sched/sched.h    | 36 ++++++++++++++++++++++++++++++++++--
- 3 files changed, 59 insertions(+), 20 deletions(-)
+ 3 files changed, 60 insertions(+), 21 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
 index 9714e79..19b1fff 100644
@@ -86,7 +86,7 @@ index 9714e79..19b1fff 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 071085e..61f308a 100644
+index 071085e..d87d082 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -130,7 +130,7 @@ static void task_non_contending(struct task_struct *p)
@@ -114,10 +114,12 @@ index 071085e..61f308a 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -849,11 +852,12 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -848,12 +851,13 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+  */
  u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
- 	u64 u_act;
+-	u64 u_act;
++	s64 u_act;
 +	u64 u_act_min;
  
 -	if (rq->dl.this_bw - rq->dl.running_bw > (1 << 20) - u)
@@ -150,7 +152,7 @@ index 071085e..61f308a 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 0ffb281..8416506 100644
+index 0ffb281..ff6f805 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -171,7 +173,7 @@ index 0ffb281..8416506 100644
 +void __dl_clear(struct dl_bw *dl_b, u64 tsk_bw, int cpus)
  {
  	dl_b->total_bw -= tsk_bw;
-+	__dl_update(dl_b, (u32)tsk_bw / cpus);
++	__dl_update(dl_b, (s32)tsk_bw / cpus);
  }
  
  static inline
@@ -179,7 +181,7 @@ index 0ffb281..8416506 100644
 +void __dl_add(struct dl_bw *dl_b, u64 tsk_bw, int cpus)
  {
  	dl_b->total_bw += tsk_bw;
-+	__dl_update(dl_b, -((u32)tsk_bw / cpus));
++	__dl_update(dl_b, -((s32)tsk_bw / cpus));
  }
  
  static inline
