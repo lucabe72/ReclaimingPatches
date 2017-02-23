@@ -1,4 +1,4 @@
-From fc86f63a962abfc5e5e6663d11ceb8542986e14b Mon Sep 17 00:00:00 2001
+From 88819ab2417fe340bf83c383e7fa8780af1085b8 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Fri, 3 Feb 2017 13:53:10 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
@@ -9,12 +9,12 @@ tasks that are "assigned" to a runqueue, independently from their state
 
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/deadline.c | 79 ++++++++++++++++++++++++++++++++++++-------------
+ kernel/sched/deadline.c | 88 ++++++++++++++++++++++++++++++++++++-------------
  kernel/sched/sched.h    | 11 +++++++
- 2 files changed, 70 insertions(+), 20 deletions(-)
+ 2 files changed, 77 insertions(+), 22 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index ce3e092..c4c9de8 100644
+index ce3e092..7039e00 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
@@ -192,7 +192,17 @@ index ce3e092..c4c9de8 100644
  			add_running_bw(&p->dl, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -1925,7 +1965,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1917,6 +1957,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+ 	if (task_on_rq_queued(p) && p->dl.dl_runtime)
+ 		task_non_contending(p);
+ 
++	if (!task_on_rq_queued(p))
++		sub_rq_bw(&p->dl, &rq->dl);
++
+ 	/*
+ 	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
+ 	 * at the 0-lag time, because the task could have been migrated
+@@ -1925,7 +1968,6 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (p->dl.dl_non_contending)
  		p->dl.dl_non_contending = 0;
  
@@ -200,6 +210,20 @@ index ce3e092..c4c9de8 100644
  	/*
  	 * Since this might be the only -deadline task on the rq,
  	 * this is the right place to try to pull some other one
+@@ -1947,9 +1989,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
+ 		put_task_struct(p);
+ 
+ 	/* If p is not queued we will update its parameters at next wakeup. */
+-	if (!task_on_rq_queued(p))
+-		return;
++	if (!task_on_rq_queued(p)) {
++		add_rq_bw(&p->dl, &rq->dl);
+ 
++		return;
++	}
+ 	/*
+ 	 * If p is boosted we already updated its params in
+ 	 * rt_mutex_setprio()->enqueue_task(..., ENQUEUE_REPLENISH),
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
 index 68d1203..0ffb281 100644
 --- a/kernel/sched/sched.h
