@@ -1,6 +1,6 @@
-From af7b9859c23a8d6a3040cf04690605c18eef8f9c Mon Sep 17 00:00:00 2001
+From 77e1985b28ddc67bc7573a393fb4cbad3fb57056 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Fri, 20 Jan 2017 09:41:23 +0100
+Date: Mon, 27 Feb 2017 11:00:46 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
  tasks
 
@@ -17,7 +17,7 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
  3 files changed, 60 insertions(+), 21 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 9714e79..19b1fff 100644
+index d25b507..c074058 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2451,7 +2451,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -57,10 +57,10 @@ index 9714e79..19b1fff 100644
 -		__dl_add(dl_b, new_bw);
 +		__dl_clear(dl_b, p->dl.dl_bw, cpus);
 +		__dl_add(dl_b, new_bw, cpus);
+ 		dl_change_utilization(p, new_bw);
  		err = 0;
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
- 		/*
-@@ -5445,7 +5445,7 @@ int task_can_attach(struct task_struct *p,
+@@ -5446,7 +5446,7 @@ int task_can_attach(struct task_struct *p,
  			 * We will free resources in the source root_domain
  			 * later on (see set_cpus_allowed_dl()).
  			 */
@@ -69,7 +69,7 @@ index 9714e79..19b1fff 100644
  		}
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  		rcu_read_unlock_sched();
-@@ -6724,10 +6724,13 @@ static void sched_dl_do_global(void)
+@@ -6725,10 +6725,13 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -86,10 +86,10 @@ index 9714e79..19b1fff 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 071085e..6e53c43 100644
+index bfdc820..579dc35 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -130,7 +130,7 @@ static void task_non_contending(struct task_struct *p)
+@@ -154,7 +154,7 @@ static void task_non_contending(struct task_struct *p)
  			if (p->state == TASK_DEAD)
  				sub_rq_bw(&p->dl, &rq->dl);
  			raw_spin_lock(&dl_b->lock);
@@ -98,7 +98,7 @@ index 071085e..6e53c43 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -220,10 +220,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -244,10 +244,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -114,7 +114,7 @@ index 071085e..6e53c43 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -848,12 +851,13 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -872,12 +875,13 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
@@ -133,7 +133,7 @@ index 071085e..6e53c43 100644
  
  	return (delta * u_act) >> 20;
  }
-@@ -962,7 +966,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -986,7 +990,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -142,7 +142,7 @@ index 071085e..6e53c43 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1914,7 +1918,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1938,7 +1942,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
@@ -152,7 +152,7 @@ index 071085e..6e53c43 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 0ffb281..ff6f805 100644
+index 67744d9..52e37c0 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -185,7 +185,7 @@ index 0ffb281..ff6f805 100644
  }
  
  static inline
-@@ -575,6 +580,7 @@ struct dl_rq {
+@@ -576,6 +581,7 @@ struct dl_rq {
  	 * runqueue (inactive utilization = this_bw - running_bw).
  	 */
  	u64 this_bw;
@@ -193,7 +193,7 @@ index 0ffb281..ff6f805 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1891,6 +1897,32 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1892,6 +1898,32 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
