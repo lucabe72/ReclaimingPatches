@@ -1,6 +1,6 @@
-From 06b389ac37a27f29209b5eff5448c737ce1f61bd Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca@theoden.retis>
-Date: Tue, 17 Jan 2017 11:30:25 +0100
+From 620813faac236975f28ea2c917952f795d3ca335 Mon Sep 17 00:00:00 2001
+From: luca abeni <luca.abeni@santannapisa.it>
+Date: Tue, 28 Feb 2017 12:48:54 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
  utilization
 
@@ -88,13 +88,13 @@ index ca147e9..6a138a2 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index fcfc46a..648a508 100644
+index 06226c8..a59014c 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -121,8 +121,14 @@ static void task_non_contending(struct task_struct *p)
  	if (zerolag_time < 0) {
  		if (dl_task(p))
- 			sub_running_bw(dl_se, dl_rq);
+ 			sub_running_bw(dl_se->dl_bw, dl_rq);
 -		if (!dl_task(p) || p->state == TASK_DEAD)
 +		if (!dl_task(p) || p->state == TASK_DEAD) {
 +			struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
@@ -114,7 +114,7 @@ index fcfc46a..648a508 100644
 +		struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
 +
  		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {
- 			sub_running_bw(&p->dl, dl_rq_of_se(&p->dl));
+ 			sub_running_bw(p->dl.dl_bw, dl_rq_of_se(&p->dl));
  			dl_se->dl_non_contending = 0;
  		}
 +

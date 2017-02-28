@@ -1,6 +1,6 @@
-From 704bd70d89139c95b416c8c9b46a5c336d043ba4 Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca.abeni@unitn.it>
-Date: Mon, 21 Nov 2016 14:52:50 +0100
+From b2e7308182fdc688073f1de39fbac8fe2ffb1aab Mon Sep 17 00:00:00 2001
+From: luca abeni <luca.abeni@santannapisa.it>
+Date: Tue, 28 Feb 2017 12:46:50 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
  utilization
 
@@ -14,9 +14,9 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
  include/linux/sched.h   |  17 ++++
  kernel/sched/core.c     |   3 +
- kernel/sched/deadline.c | 212 +++++++++++++++++++++++++++++++++++++++++++-----
+ kernel/sched/deadline.c | 211 +++++++++++++++++++++++++++++++++++++++++++-----
  kernel/sched/sched.h    |   2 +
- 4 files changed, 215 insertions(+), 19 deletions(-)
+ 4 files changed, 214 insertions(+), 19 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
 index 2cc4d79..6ec049f 100644
@@ -85,10 +85,10 @@ index 4befa24..ca147e9 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 03f22da..fcfc46a 100644
+index 460c98e..06226c8 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -65,6 +65,107 @@ void sub_running_bw(struct sched_dl_entity *dl_se, struct dl_rq *dl_rq)
+@@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
  		dl_rq->running_bw = 0;
  }
  
@@ -98,7 +98,7 @@ index 03f22da..fcfc46a 100644
 +		struct rq *rq = task_rq(p);
 +
 +		if (p->dl.dl_non_contending) {
-+			sub_running_bw(&p->dl, &rq->dl);
++			sub_running_bw(p->dl.dl_bw, &rq->dl);
 +			p->dl.dl_non_contending = 0;
 +			/*
 +			 * If the timer handler is currently running and the
@@ -147,7 +147,7 @@ index 03f22da..fcfc46a 100644
 +	 */
 +	if (zerolag_time < 0) {
 +		if (dl_task(p))
-+			sub_running_bw(dl_se, dl_rq);
++			sub_running_bw(dl_se->dl_bw, dl_rq);
 +		if (!dl_task(p) || p->state == TASK_DEAD)
 +			__dl_clear_params(p);
 +
@@ -189,7 +189,7 @@ index 03f22da..fcfc46a 100644
 +		 * when the "inactive timer" fired).
 +		 * So, add it back.
 +		 */
-+		add_running_bw(dl_se, dl_rq);
++		add_running_bw(dl_se->dl_bw, dl_rq);
 +	}
 +}
 +
@@ -225,7 +225,7 @@ index 03f22da..fcfc46a 100644
 +
 +	if (!dl_task(p) || p->state == TASK_DEAD) {
 +		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {
-+			sub_running_bw(&p->dl, dl_rq_of_se(&p->dl));
++			sub_running_bw(p->dl.dl_bw, dl_rq_of_se(&p->dl));
 +			dl_se->dl_non_contending = 0;
 +		}
 +		__dl_clear_params(p);
@@ -238,7 +238,7 @@ index 03f22da..fcfc46a 100644
 +	sched_clock_tick();
 +	update_rq_clock(rq);
 +
-+	sub_running_bw(dl_se, &rq->dl);
++	sub_running_bw(dl_se->dl_bw, &rq->dl);
 +	dl_se->dl_non_contending = 0;
 +unlock:
 +	task_rq_unlock(rq, p, &rf);
@@ -264,7 +264,7 @@ index 03f22da..fcfc46a 100644
  	if (flags & ENQUEUE_WAKEUP) {
 -		struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
 -
--		add_running_bw(dl_se, dl_rq);
+-		add_running_bw(dl_se->dl_bw, dl_rq);
 +		task_contending(dl_se);
  		update_dl_entity(dl_se, pi_se);
  	}
@@ -275,14 +275,14 @@ index 03f22da..fcfc46a 100644
  
 -	if (p->on_rq == TASK_ON_RQ_MIGRATING)
 +	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & ENQUEUE_RESTORE)
- 		add_running_bw(&p->dl, &rq->dl);
+ 		add_running_bw(p->dl.dl_bw, &rq->dl);
  
  	/*
 @@ -989,7 +1129,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
--		add_running_bw(&p->dl, &rq->dl);
+-		add_running_bw(p->dl.dl_bw, &rq->dl);
 +		if (!(flags & ENQUEUE_RESTORE))
 +			task_contending(&p->dl);
 +
@@ -295,14 +295,14 @@ index 03f22da..fcfc46a 100644
  
 -	if (p->on_rq == TASK_ON_RQ_MIGRATING)
 +	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & DEQUEUE_SAVE)
- 		sub_running_bw(&p->dl, &rq->dl);
+ 		sub_running_bw(p->dl.dl_bw, &rq->dl);
  
  	/*
 @@ -1023,7 +1165,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * or "inactive")
  	 */
  	if (flags & DEQUEUE_SLEEP)
--		sub_running_bw(&p->dl, &rq->dl);
+-		sub_running_bw(p->dl.dl_bw, &rq->dl);
 +		task_non_contending(p);
  }
  
@@ -317,7 +317,7 @@ index 03f22da..fcfc46a 100644
 +		struct rq *rq = task_rq(p);
 +		raw_spin_lock(&rq->lock);
 +
-+		sub_running_bw(&p->dl, &rq->dl);
++		sub_running_bw(p->dl.dl_bw, &rq->dl);
 +		p->dl.dl_non_contending = 0;
 +		/*
 +		 * If the timer handler is currently running and the
@@ -336,7 +336,7 @@ index 03f22da..fcfc46a 100644
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1742,16 +1906,24 @@ void __init init_sched_dl_class(void)
+@@ -1742,16 +1906,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -355,7 +355,9 @@ index 03f22da..fcfc46a 100644
 -		__dl_clear_params(p);
 +	if (task_on_rq_queued(p) && p->dl.dl_runtime)
 +		task_non_contending(p);
-+
+ 
+-	if (task_on_rq_queued(p))
+-		sub_running_bw(p->dl.dl_bw, &rq->dl);
 +	/*
 +	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
 +	 * at the 0-lag time, because the task could have been migrated
@@ -364,22 +366,19 @@ index 03f22da..fcfc46a 100644
 +	if (p->dl.dl_non_contending)
 +		p->dl.dl_non_contending = 0;
  
--	if (task_on_rq_queued(p))
--		sub_running_bw(&p->dl, &rq->dl);
- 
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1770,7 +1942,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1770,7 +1941,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
--	add_running_bw(&p->dl, &rq->dl);
+-	add_running_bw(p->dl.dl_bw, &rq->dl);
 +	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
 +		put_task_struct(p);
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1845,6 +2018,7 @@ const struct sched_class dl_sched_class = {
+@@ -1845,6 +2017,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,

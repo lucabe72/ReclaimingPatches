@@ -1,4 +1,4 @@
-From 77e1985b28ddc67bc7573a393fb4cbad3fb57056 Mon Sep 17 00:00:00 2001
+From 79c0afd9ae4703298fb4f3eb1da5cb846a525ddd Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 27 Feb 2017 11:00:46 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
@@ -86,19 +86,19 @@ index d25b507..c074058 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index bfdc820..579dc35 100644
+index 6e76221..866dc77 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -154,7 +154,7 @@ static void task_non_contending(struct task_struct *p)
+@@ -153,7 +153,7 @@ static void task_non_contending(struct task_struct *p)
  			if (p->state == TASK_DEAD)
- 				sub_rq_bw(&p->dl, &rq->dl);
+ 				sub_rq_bw(p->dl.dl_bw, &rq->dl);
  			raw_spin_lock(&dl_b->lock);
 -			__dl_clear(dl_b, p->dl.dl_bw);
 +			__dl_clear(dl_b, p->dl.dl_bw, dl_bw_cpus(task_cpu(p)));
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -244,10 +244,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -243,10 +243,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -114,7 +114,7 @@ index bfdc820..579dc35 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -872,12 +875,13 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -871,12 +874,13 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
@@ -133,7 +133,7 @@ index bfdc820..579dc35 100644
  
  	return (delta * u_act) >> 20;
  }
-@@ -986,7 +990,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -985,7 +989,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -142,7 +142,7 @@ index bfdc820..579dc35 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1938,7 +1942,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1937,7 +1941,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
