@@ -1,5 +1,5 @@
 From 3024449f258e596743bd6fa6dc1c7781279cd164 Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca.abeni@unitn.it>
+From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
 
@@ -8,7 +8,7 @@ allows a CPU hog to starve non-deadline tasks.
 To address this issue, allow the scheduler to reclaim only a
 specified fraction of CPU time.
 
-Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
+Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/core.c     | 6 ++++++
  kernel/sched/deadline.c | 7 ++++++-

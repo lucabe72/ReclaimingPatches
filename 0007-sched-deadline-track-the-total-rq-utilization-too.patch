@@ -1,5 +1,5 @@
 From c45c79c90553fe6617065d4adf76f36936012e47 Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca@theoden.retis>
+From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:22:46 +0100
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
 
@@ -7,7 +7,7 @@ The total rq utilization is defined as the sum of the utilisations of
 tasks that are "assigned" to a runqueue, independently from their state
 (TASK_RUNNING or blocked)
 
-Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
+Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/deadline.c | 87 +++++++++++++++++++++++++++++++++++++------------
  kernel/sched/sched.h    | 11 +++++++

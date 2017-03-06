@@ -1,5 +1,5 @@
 From 52e95052585f510d4d13a7ca54c7e332c8c24973 Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca.abeni@unitn.it>
+From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 4/9] sched/deadline: implement GRUB accounting
 
@@ -10,7 +10,7 @@ utilization).
 Hence, this commit modifies the runtime accounting rule in
 update_curr_dl() to implement the GRUB rule.
 
-Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
+Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/deadline.c | 14 ++++++++++++++
  1 file changed, 14 insertions(+)
