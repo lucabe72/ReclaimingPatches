@@ -1,6 +1,6 @@
-From 79c0afd9ae4703298fb4f3eb1da5cb846a525ddd Mon Sep 17 00:00:00 2001
-From: luca abeni <luca.abeni@santannapisa.it>
-Date: Mon, 27 Feb 2017 11:00:46 +0100
+From 3be405bddc0a2935ea432bcaa88f65c662286f97 Mon Sep 17 00:00:00 2001
+From: Luca Abeni <luca@theoden.retis>
+Date: Mon, 6 Mar 2017 12:27:09 +0100
 Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
  tasks
 
@@ -12,15 +12,15 @@ and does not depend on the total deadline utilization.
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 ---
  kernel/sched/core.c     | 21 ++++++++++++---------
- kernel/sched/deadline.c | 24 ++++++++++++++----------
- kernel/sched/sched.h    | 36 ++++++++++++++++++++++++++++++++++--
- 3 files changed, 60 insertions(+), 21 deletions(-)
+ kernel/sched/deadline.c | 26 ++++++++++++++++----------
+ kernel/sched/sched.h    | 37 +++++++++++++++++++++++++++++++++++--
+ 3 files changed, 63 insertions(+), 21 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index d25b507..c074058 100644
+index fc16ed9..4f98ab5 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2451,7 +2451,7 @@ inline struct dl_bw *dl_bw_of(int i)
+@@ -2455,7 +2455,7 @@ inline struct dl_bw *dl_bw_of(int i)
  	return &cpu_rq(i)->rd->dl_bw;
  }
  
@@ -29,7 +29,7 @@ index d25b507..c074058 100644
  {
  	struct root_domain *rd = cpu_rq(i)->rd;
  	int cpus = 0;
-@@ -2469,7 +2469,7 @@ inline struct dl_bw *dl_bw_of(int i)
+@@ -2473,7 +2473,7 @@ inline struct dl_bw *dl_bw_of(int i)
  	return &cpu_rq(i)->dl.dl_bw;
  }
  
@@ -38,7 +38,7 @@ index d25b507..c074058 100644
  {
  	return 1;
  }
-@@ -2507,8 +2507,8 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2511,8 +2511,8 @@ static int dl_overflow(struct task_struct *p, int policy,
  	if (dl_policy(policy) && !task_has_dl_policy(p) &&
  	    !__dl_overflow(dl_b, cpus, 0, new_bw)) {
  		if (hrtimer_active(&p->dl.inactive_timer))
@@ -49,7 +49,7 @@ index d25b507..c074058 100644
  		err = 0;
  	} else if (dl_policy(policy) && task_has_dl_policy(p) &&
  		   !__dl_overflow(dl_b, cpus, p->dl.dl_bw, new_bw)) {
-@@ -2519,8 +2519,8 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2523,8 +2523,8 @@ static int dl_overflow(struct task_struct *p, int policy,
  		 * But this would require to set the task's "inactive
  		 * timer" when the task is not inactive.
  		 */
@@ -60,7 +60,7 @@ index d25b507..c074058 100644
  		dl_change_utilization(p, new_bw);
  		err = 0;
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
-@@ -5446,7 +5446,7 @@ int task_can_attach(struct task_struct *p,
+@@ -5455,7 +5455,7 @@ int task_can_attach(struct task_struct *p,
  			 * We will free resources in the source root_domain
  			 * later on (see set_cpus_allowed_dl()).
  			 */
@@ -69,7 +69,7 @@ index d25b507..c074058 100644
  		}
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  		rcu_read_unlock_sched();
-@@ -6725,10 +6725,13 @@ static void sched_dl_do_global(void)
+@@ -6713,12 +6713,15 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -79,14 +79,16 @@ index d25b507..c074058 100644
 -		else
 +			cpu_rq(cpu)->dl.extra_bw = 1 << 20;
 +		} else {
- 			cpu_rq(cpu)->dl.deadline_bw_inv = to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
+ 			cpu_rq(cpu)->dl.deadline_bw_inv =
+ 				to_ratio(global_rt_runtime(),
+ 					 global_rt_period()) >> 12;
 +			cpu_rq(cpu)->dl.extra_bw = new_bw;
 +		}
  	}
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 6e76221..866dc77 100644
+index 56858ab..d88210b 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -153,7 +153,7 @@ static void task_non_contending(struct task_struct *p)
@@ -98,7 +100,7 @@ index 6e76221..866dc77 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -243,10 +243,13 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -243,11 +243,15 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -108,13 +110,15 @@ index 6e76221..866dc77 100644
 -	else
 +		dl_rq->extra_bw = 1 << 20;
 +	} else {
- 		dl_rq->deadline_bw_inv = to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
-+		dl_rq->extra_bw = to_ratio(global_rt_period(), global_rt_runtime());
+ 		dl_rq->deadline_bw_inv =
+ 			to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
++		dl_rq->extra_bw =
++			to_ratio(global_rt_period(), global_rt_runtime());
 +	}
  }
  
  #ifdef CONFIG_SMP
-@@ -871,12 +874,13 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -872,12 +876,14 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
@@ -126,14 +130,15 @@ index 6e76221..866dc77 100644
 -		u_act = u;
 -	else
 -		u_act = (1 << 20) - rq->dl.this_bw + rq->dl.running_bw;
-+	u_act = (1 << 20) - rq->dl.this_bw - rq->dl.extra_bw + rq->dl.running_bw;
++	u_act = (1 << 20) - rq->dl.this_bw - rq->dl.extra_bw +
++		rq->dl.running_bw;
 +	u_act_min = (u * rq->dl.deadline_bw_inv) >> 8;
 +	if (u_act < u_act_min)
 +		u_act = u_act_min;
  
  	return (delta * u_act) >> 20;
  }
-@@ -985,7 +989,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -986,7 +992,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -142,7 +147,7 @@ index 6e76221..866dc77 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -1937,7 +1941,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -1938,7 +1944,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
@@ -152,7 +157,7 @@ index 6e76221..866dc77 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 67744d9..52e37c0 100644
+index 67744d9..513135f 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -193,7 +198,7 @@ index 67744d9..52e37c0 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1892,6 +1898,32 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1892,6 +1898,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
@@ -218,6 +223,7 @@ index 67744d9..52e37c0 100644
 +void __dl_update(struct dl_bw *dl_b, s64 bw)
 +{
 +	struct dl_rq *dl = container_of(dl_b, struct dl_rq, dl_bw);
++
 +	dl->extra_bw += bw;
 +}
 +#endif
@@ -227,5 +233,5 @@ index 67744d9..52e37c0 100644
  struct irqtime {
  	u64			tick_delta;
 -- 
-2.7.4
+2.9.3
 

@@ -1,4 +1,4 @@
-From e99a4947d662bec6ec637f50de198e10f8fa30d7 Mon Sep 17 00:00:00 2001
+From 3024449f258e596743bd6fa6dc1c7781279cd164 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -10,42 +10,45 @@ specified fraction of CPU time.
 
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/core.c     | 4 ++++
- kernel/sched/deadline.c | 6 +++++-
+ kernel/sched/core.c     | 6 ++++++
+ kernel/sched/deadline.c | 7 ++++++-
  kernel/sched/sched.h    | 6 ++++++
- 3 files changed, 15 insertions(+), 1 deletion(-)
+ 3 files changed, 18 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 6a138a2..68241ed 100644
+index 327cfd0..118f5dd 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -6724,6 +6724,10 @@ static void sched_dl_do_global(void)
+@@ -6712,6 +6712,12 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
 +		if (dl_b->bw == -1)
 +			cpu_rq(cpu)->dl.deadline_bw_inv = 1 << 8;
 +		else
-+			cpu_rq(cpu)->dl.deadline_bw_inv = to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
++			cpu_rq(cpu)->dl.deadline_bw_inv =
++				to_ratio(global_rt_runtime(),
++					 global_rt_period()) >> 12;
  	}
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 03dd341..6cd22eb 100644
+index 32f123d..4893f3b 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -212,6 +212,10 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -212,6 +212,11 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
 +	if (global_rt_runtime() == RUNTIME_INF)
 +		dl_rq->deadline_bw_inv = 1 << 8;
 +	else
-+		dl_rq->deadline_bw_inv = to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
++		dl_rq->deadline_bw_inv =
++			to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
  }
  
  #ifdef CONFIG_SMP
-@@ -834,7 +838,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -834,7 +839,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {
@@ -72,5 +75,5 @@ index 0200eaf..75b3c65 100644
  
  #ifdef CONFIG_SMP
 -- 
-2.7.4
+2.9.3
 
