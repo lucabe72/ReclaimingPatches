@@ -1,4 +1,4 @@
-From e53a702477d72bdd841517588608c3abc03a3232 Mon Sep 17 00:00:00 2001
+From f51248d2f1313ce1123928fe8bf8c66690c4cd62 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
 Subject: [PATCH 1/9] sched/deadline: track the active utilization
@@ -17,12 +17,12 @@ time), a more theoretically sound solution will follow.
 Signed-off-by: Juri Lelli <juri.lelli@arm.com>
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
- kernel/sched/deadline.c | 66 ++++++++++++++++++++++++++++++++++++++++++++++---
+ kernel/sched/deadline.c | 61 ++++++++++++++++++++++++++++++++++++++++++++++---
  kernel/sched/sched.h    |  6 +++++
- 2 files changed, 69 insertions(+), 3 deletions(-)
+ 2 files changed, 64 insertions(+), 3 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 99b2c33..460c98e 100644
+index 99b2c33..c74260d 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -43,6 +43,28 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
@@ -72,7 +72,7 @@ index 99b2c33..460c98e 100644
  		return;
  	}
  
-+	if (p->on_rq == TASK_ON_RQ_MIGRATING)
++	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & ENQUEUE_RESTORE)
 +		add_running_bw(p->dl.dl_bw, &rq->dl);
 +
  	/*
@@ -96,17 +96,16 @@ index 99b2c33..460c98e 100644
  
  	enqueue_dl_entity(&p->dl, pi_se, flags);
  
-@@ -972,6 +1009,21 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -972,6 +1009,20 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  {
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
 +
-+	if (p->on_rq == TASK_ON_RQ_MIGRATING)
++	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & DEQUEUE_SAVE)
 +		sub_running_bw(p->dl.dl_bw, &rq->dl);
 +
 +	/*
-+	 * This check allows to start the inactive timer (or to immediately
-+	 * decrease the active utilization, if needed) in two cases:
++	 * This check allows to decrease the active utilization in two cases:
 +	 * when the task blocks and when it is terminating
 +	 * (p->state == TASK_DEAD). We can handle the two cases in the same
 +	 * way, because from GRUB's point of view the same thing is happening
@@ -118,7 +117,7 @@ index 99b2c33..460c98e 100644
  }
  
  /*
-@@ -1500,7 +1552,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1500,7 +1551,9 @@ static int push_dl_task(struct rq *rq)
  	}
  
  	deactivate_task(rq, next_task, 0);
@@ -128,7 +127,7 @@ index 99b2c33..460c98e 100644
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
  
-@@ -1588,7 +1642,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1588,7 +1641,9 @@ static void pull_dl_task(struct rq *this_rq)
  			resched = true;
  
  			deactivate_task(src_rq, p, 0);
@@ -138,24 +137,6 @@ index 99b2c33..460c98e 100644
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
  
-@@ -1694,6 +1750,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
- 	if (!start_dl_timer(p))
- 		__dl_clear_params(p);
- 
-+	if (task_on_rq_queued(p))
-+		sub_running_bw(p->dl.dl_bw, &rq->dl);
-+
- 	/*
- 	 * Since this might be the only -deadline task on the rq,
- 	 * this is the right place to try to pull some other one
-@@ -1711,6 +1770,7 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
-  */
- static void switched_to_dl(struct rq *rq, struct task_struct *p)
- {
-+	add_running_bw(p->dl.dl_bw, &rq->dl);
- 
- 	/* If p is not queued we will update its parameters at next wakeup. */
- 	if (!task_on_rq_queued(p))
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
 index 207fc1f..223ab04 100644
 --- a/kernel/sched/sched.h
@@ -174,5 +155,5 @@ index 207fc1f..223ab04 100644
  
  #ifdef CONFIG_SMP
 -- 
-2.7.4
+2.9.3
 

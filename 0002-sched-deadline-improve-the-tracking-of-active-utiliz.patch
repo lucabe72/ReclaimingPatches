@@ -1,6 +1,6 @@
-From b2e7308182fdc688073f1de39fbac8fe2ffb1aab Mon Sep 17 00:00:00 2001
-From: luca abeni <luca.abeni@santannapisa.it>
-Date: Tue, 28 Feb 2017 12:46:50 +0100
+From 1d0eb97d9fd1dafb777e6446d3e59343910ca0be Mon Sep 17 00:00:00 2001
+From: Luca Abeni <luca@theoden.retis>
+Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
  utilization
 
@@ -14,12 +14,12 @@ Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 ---
  include/linux/sched.h   |  17 ++++
  kernel/sched/core.c     |   3 +
- kernel/sched/deadline.c | 211 +++++++++++++++++++++++++++++++++++++++++++-----
+ kernel/sched/deadline.c | 208 ++++++++++++++++++++++++++++++++++++++++++++----
  kernel/sched/sched.h    |   2 +
- 4 files changed, 214 insertions(+), 19 deletions(-)
+ 4 files changed, 215 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index 2cc4d79..6ec049f 100644
+index d67eee8..952cac8 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
 @@ -445,16 +445,33 @@ struct sched_dl_entity {
@@ -57,10 +57,10 @@ index 2cc4d79..6ec049f 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 4befa24..ca147e9 100644
+index 6e87f7e..04341d5 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2160,6 +2160,7 @@ void __dl_clear_params(struct task_struct *p)
+@@ -2164,6 +2164,7 @@ void __dl_clear_params(struct task_struct *p)
  
  	dl_se->dl_throttled = 0;
  	dl_se->dl_yielded = 0;
@@ -68,7 +68,7 @@ index 4befa24..ca147e9 100644
  }
  
  /*
-@@ -2191,6 +2192,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
+@@ -2195,6 +2196,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
  
  	RB_CLEAR_NODE(&p->dl.rb_node);
  	init_dl_task_timer(&p->dl);
@@ -76,7 +76,7 @@ index 4befa24..ca147e9 100644
  	__dl_clear_params(p);
  
  	INIT_LIST_HEAD(&p->rt.run_list);
-@@ -2513,6 +2515,7 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2517,6 +2519,7 @@ static int dl_overflow(struct task_struct *p, int policy,
  		   !__dl_overflow(dl_b, cpus, p->dl.dl_bw, new_bw)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
  		__dl_add(dl_b, new_bw);
@@ -85,7 +85,7 @@ index 4befa24..ca147e9 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 460c98e..06226c8 100644
+index c74260d..4c535b3 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -269,15 +269,6 @@ index 460c98e..06226c8 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -973,7 +1113,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
- 		return;
- 	}
- 
--	if (p->on_rq == TASK_ON_RQ_MIGRATING)
-+	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & ENQUEUE_RESTORE)
- 		add_running_bw(p->dl.dl_bw, &rq->dl);
- 
- 	/*
 @@ -989,7 +1129,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */
@@ -289,16 +280,17 @@ index 460c98e..06226c8 100644
  		return;
  	}
  
-@@ -1010,7 +1152,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
- 	update_curr_dl(rq);
- 	__dequeue_task_dl(rq, p, flags);
- 
--	if (p->on_rq == TASK_ON_RQ_MIGRATING)
-+	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & DEQUEUE_SAVE)
+@@ -1014,7 +1156,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		sub_running_bw(p->dl.dl_bw, &rq->dl);
  
  	/*
-@@ -1023,7 +1165,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+-	 * This check allows to decrease the active utilization in two cases:
++	 * This check allows to start the inactive timer (or to immediately
++	 * decrease the active utilization, if needed) in two cases:
+ 	 * when the task blocks and when it is terminating
+ 	 * (p->state == TASK_DEAD). We can handle the two cases in the same
+ 	 * way, because from GRUB's point of view the same thing is happening
+@@ -1022,7 +1165,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * or "inactive")
  	 */
  	if (flags & DEQUEUE_SLEEP)
@@ -307,7 +299,7 @@ index 460c98e..06226c8 100644
  }
  
  /*
-@@ -1101,6 +1243,28 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1100,6 +1243,28 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	return cpu;
  }
  
@@ -315,8 +307,8 @@ index 460c98e..06226c8 100644
 +{
 +	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
 +		struct rq *rq = task_rq(p);
-+		raw_spin_lock(&rq->lock);
 +
++		raw_spin_lock(&rq->lock);
 +		sub_running_bw(p->dl.dl_bw, &rq->dl);
 +		p->dl.dl_non_contending = 0;
 +		/*
@@ -336,7 +328,7 @@ index 460c98e..06226c8 100644
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1742,16 +1906,23 @@ void __init init_sched_dl_class(void)
+@@ -1741,13 +1906,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -355,9 +347,7 @@ index 460c98e..06226c8 100644
 -		__dl_clear_params(p);
 +	if (task_on_rq_queued(p) && p->dl.dl_runtime)
 +		task_non_contending(p);
- 
--	if (task_on_rq_queued(p))
--		sub_running_bw(p->dl.dl_bw, &rq->dl);
++
 +	/*
 +	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
 +	 * at the 0-lag time, because the task could have been migrated
@@ -368,17 +358,16 @@ index 460c98e..06226c8 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1770,7 +1941,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1766,6 +1941,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
--	add_running_bw(p->dl.dl_bw, &rq->dl);
 +	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
 +		put_task_struct(p);
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1845,6 +2017,7 @@ const struct sched_class dl_sched_class = {
+@@ -1840,6 +2017,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,
@@ -407,5 +396,5 @@ index 223ab04..0200eaf 100644
  unsigned long to_ratio(u64 period, u64 runtime);
  
 -- 
-2.7.4
+2.9.3
 
