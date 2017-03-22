@@ -11,6 +11,7 @@ Hence, this commit modifies the runtime accounting rule in
 update_curr_dl() to implement the GRUB rule.
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
+Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/deadline.c | 14 ++++++++++++++
  1 file changed, 14 insertions(+)

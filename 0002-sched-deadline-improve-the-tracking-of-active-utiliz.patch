@@ -12,6 +12,7 @@ active utilization at the so called "0-lag time".
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Claudio Scordino <claudio@evidence.eu.com>
+Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  include/linux/sched.h   |  17 ++++
  kernel/sched/core.c     |   3 +

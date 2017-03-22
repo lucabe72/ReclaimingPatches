@@ -10,6 +10,7 @@ it is possible to use inactive_task_timer() to update the total
 dl_overflow() and __setparam_dl().
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
+Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 38 ++++++++++++++------------------------
  kernel/sched/deadline.c | 23 +++++++++++++----------

@@ -9,6 +9,7 @@ To address this issue, allow the scheduler to reclaim only a
 specified fraction of CPU time.
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
+Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 6 ++++++
  kernel/sched/deadline.c | 7 ++++++-

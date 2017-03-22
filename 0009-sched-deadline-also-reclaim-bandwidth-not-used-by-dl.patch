@@ -10,6 +10,7 @@ time that can reclaimed by deadline tasks is fixed (and configurable)
 and does not depend on the total deadline utilization.
 
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
+Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 21 ++++++++++++---------
  kernel/sched/deadline.c | 26 ++++++++++++++++----------

@@ -14,6 +14,7 @@ This approach solves some fairness issues that have been noticed with
 "traditional" global GRUB reclaiming.
 
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
+Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/deadline.c | 23 ++++++++++++++++-------
  1 file changed, 16 insertions(+), 7 deletions(-)
