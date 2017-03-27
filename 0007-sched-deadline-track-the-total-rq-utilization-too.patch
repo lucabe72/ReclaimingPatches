@@ -1,4 +1,4 @@
-From 84153e62f6c0459d1a5c4099fba1630ac40a559a Mon Sep 17 00:00:00 2001
+From e19887683da418e61374f9980b8aad2971a732dc Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 27 Mar 2017 13:23:25 +0200
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
@@ -16,7 +16,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 94 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index d70be80..14446ec 100644
+index 196d70b..d3f6ccc 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -120,8 +120,8 @@ index d70be80..14446ec 100644
 +		add_rq_bw(dl_se->dl_bw, dl_rq);
 +
  	if (dl_se->dl_non_contending) {
+ 		dl_se->dl_non_contending = 0;
  		/*
- 		 * If the timer handler is currently running and the
 @@ -978,6 +1011,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  
  		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {

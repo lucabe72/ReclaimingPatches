@@ -1,4 +1,4 @@
-From 2551d550f71e85b0807a5d799cd9074619fbeff8 Mon Sep 17 00:00:00 2001
+From 0ac2107958b82d9ce9d76c7b4a2666e8574a300f Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -87,7 +87,7 @@ index 2633b88..79afe6cc 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cef9adb..8fa9571 100644
+index cef9adb..6c166c8 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -173,6 +173,7 @@ index cef9adb..8fa9571 100644
 +		return;
 +
 +	if (dl_se->dl_non_contending) {
++		dl_se->dl_non_contending = 0;
 +		/*
 +		 * If the timer handler is currently running and the
 +		 * timer cannot be cancelled, inactive_task_timer()
@@ -182,7 +183,6 @@ index cef9adb..8fa9571 100644
 +		 */
 +		if (hrtimer_try_to_cancel(&dl_se->inactive_timer) == 1)
 +			put_task_struct(dl_task_of(dl_se));
-+		dl_se->dl_non_contending = 0;
 +	} else {
 +		/*
 +		 * Since "dl_non_contending" is not set, the
