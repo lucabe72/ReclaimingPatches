@@ -1,6 +1,6 @@
-From 46c8f5211025b3844e66a185a532441533712331 Mon Sep 17 00:00:00 2001
+From 84153e62f6c0459d1a5c4099fba1630ac40a559a Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Tue, 14 Mar 2017 08:56:10 +0100
+Date: Mon, 27 Mar 2017 13:23:25 +0200
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
 
 The total rq utilization is defined as the sum of the utilisations of
@@ -11,12 +11,12 @@ Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Signed-off-by: Claudio Scordino <claudio@evidence.eu.com>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/deadline.c | 87 +++++++++++++++++++++++++++++++++++++------------
- kernel/sched/sched.h    | 11 +++++++
- 2 files changed, 78 insertions(+), 20 deletions(-)
+ kernel/sched/deadline.c | 117 ++++++++++++++++++++++++++++++++++--------------
+ kernel/sched/sched.h    |  11 +++++
+ 2 files changed, 94 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 1951379..d70a7b9 100644
+index d70be80..14446ec 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -27,7 +27,7 @@ index 1951379..d70a7b9 100644
  }
  
  static inline
-@@ -65,6 +66,29 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
+@@ -65,25 +66,52 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
  		dl_rq->running_bw = 0;
  }
  
@@ -56,17 +56,45 @@ index 1951379..d70a7b9 100644
 +
  void dl_change_utilization(struct task_struct *p, u64 new_bw)
  {
- 	if (!task_on_rq_queued(p)) {
-@@ -83,6 +107,8 @@ void dl_change_utilization(struct task_struct *p, u64 new_bw)
- 			if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
- 				put_task_struct(p);
- 		}
-+		sub_rq_bw(p->dl.dl_bw, &rq->dl);
-+		add_rq_bw(new_bw, &rq->dl);
- 	}
+-	if (task_on_rq_queued(p))
+-		return;
++	struct rq *rq;
+ 
+-	if (!p->dl.dl_non_contending)
++	if (task_on_rq_queued(p))
+ 		return;
+ 
+-	sub_running_bw(p->dl.dl_bw, &task_rq(p)->dl);
+-	p->dl.dl_non_contending = 0;
+-	/*
+-	 * If the timer handler is currently running and the
+-	 * timer cannot be cancelled, inactive_task_timer()
+-	 * will see that dl_not_contending is not set, and
+-	 * will not touch the rq's active utilization,
+-	 * so we are still safe.
+-	 */
+-	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
+-		put_task_struct(p);
++	rq = task_rq(p);
++	if (p->dl.dl_non_contending) {
++		sub_running_bw(p->dl.dl_bw, &rq->dl);
++		p->dl.dl_non_contending = 0;
++		/*
++		 * If the timer handler is currently running and the
++		 * timer cannot be cancelled, inactive_task_timer()
++		 * will see that dl_not_contending is not set, and
++		 * will not touch the rq's active utilization,
++		 * so we are still safe.
++		 */
++		if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
++			put_task_struct(p);
++	}
++	sub_rq_bw(p->dl.dl_bw, &rq->dl);
++	add_rq_bw(new_bw, &rq->dl);
  }
  
-@@ -124,6 +150,8 @@ static void task_non_contending(struct task_struct *p)
+ static void task_non_contending(struct task_struct *p)
+@@ -124,6 +152,8 @@ static void task_non_contending(struct task_struct *p)
  		if (!dl_task(p) || p->state == TASK_DEAD) {
  			struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
  
@@ -75,7 +103,7 @@ index 1951379..d70a7b9 100644
  			raw_spin_lock(&dl_b->lock);
  			__dl_clear(dl_b, p->dl.dl_bw);
  			__dl_clear_params(p);
-@@ -138,7 +166,7 @@ static void task_non_contending(struct task_struct *p)
+@@ -138,7 +168,7 @@ static void task_non_contending(struct task_struct *p)
  	hrtimer_start(timer, ns_to_ktime(zerolag_time), HRTIMER_MODE_REL);
  }
  
@@ -84,7 +112,7 @@ index 1951379..d70a7b9 100644
  {
  	struct dl_rq *dl_rq = dl_rq_of_se(dl_se);
  
-@@ -149,6 +177,9 @@ static void task_contending(struct sched_dl_entity *dl_se)
+@@ -149,6 +179,9 @@ static void task_contending(struct sched_dl_entity *dl_se)
  	if (dl_se->dl_runtime == 0)
  		return;
  
@@ -94,7 +122,7 @@ index 1951379..d70a7b9 100644
  	if (dl_se->dl_non_contending) {
  		/*
  		 * If the timer handler is currently running and the
-@@ -978,6 +1009,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -978,6 +1011,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  
  		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {
  			sub_running_bw(p->dl.dl_bw, dl_rq_of_se(&p->dl));
@@ -102,7 +130,7 @@ index 1951379..d70a7b9 100644
  			dl_se->dl_non_contending = 0;
  		}
  
-@@ -1143,7 +1175,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -1143,7 +1177,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -111,7 +139,7 @@ index 1951379..d70a7b9 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -1196,8 +1228,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1196,8 +1230,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	if (!p->dl.dl_throttled && dl_is_constrained(&p->dl))
  		dl_check_constrained_dl(&p->dl);
  
@@ -123,7 +151,7 @@ index 1951379..d70a7b9 100644
  
  	/*
  	 * If p is throttled, we do not enqueue it. In fact, if it exhausted
-@@ -1213,7 +1247,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1213,7 +1249,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
  		if (flags & ENQUEUE_WAKEUP)
@@ -132,7 +160,7 @@ index 1951379..d70a7b9 100644
  
  		return;
  	}
-@@ -1235,8 +1269,10 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1235,8 +1271,10 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
  
@@ -144,45 +172,46 @@ index 1951379..d70a7b9 100644
  
  	/*
  	 * This check allows to start the inactive timer (or to immediately
-@@ -1328,22 +1364,24 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
- 
- static void migrate_task_rq_dl(struct task_struct *p)
+@@ -1330,23 +1368,25 @@ static void migrate_task_rq_dl(struct task_struct *p)
  {
--	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
-+	if (p->state == TASK_WAKING) {
- 		struct rq *rq = task_rq(p);
+ 	struct rq *rq;
  
- 		raw_spin_lock(&rq->lock);
--		sub_running_bw(p->dl.dl_bw, &rq->dl);
--		p->dl.dl_non_contending = 0;
--		/*
--		 * If the timer handler is currently running and the
--		 * timer cannot be cancelled, inactive_task_timer()
--		 * will see that dl_not_contending is not set, and
--		 * will not touch the rq's active utilization,
--		 * so we are still safe.
--		 */
--		if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
--			put_task_struct(p);
+-	if (!(p->state == TASK_WAKING) || !(p->dl.dl_non_contending)) {
++	if (p->state != TASK_WAKING)
+ 		return;
+ 
+  	rq = task_rq(p);
+ 	raw_spin_lock(&rq->lock);
+-	sub_running_bw(p->dl.dl_bw, &rq->dl);
+-	p->dl.dl_non_contending = 0;
+-	/*
+-	 * If the timer handler is currently running and the
+-	 * timer cannot be cancelled, inactive_task_timer()
+-	 * will see that dl_not_contending is not set, and
+-	 * will not touch the rq's active utilization,
+-	 * so we are still safe.
+-	 */
+-	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
+-		put_task_struct(p);
 -
-+		if (p->dl.dl_non_contending) {
-+			sub_running_bw(p->dl.dl_bw, &rq->dl);
-+			p->dl.dl_non_contending = 0;
-+			/*
-+			 * If the timer handler is currently running and the
-+			 * timer cannot be cancelled, inactive_task_timer()
-+			 * will see that dl_not_contending is not set, and
-+			 * will not touch the rq's active utilization,
-+			 * so we are still safe.
-+			 */
-+			if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
-+				put_task_struct(p);
-+		}
-+		sub_rq_bw(p->dl.dl_bw, &rq->dl);
- 		raw_spin_unlock(&rq->lock);
- 	}
++	if (p->dl.dl_non_contending)) {
++		sub_running_bw(p->dl.dl_bw, &rq->dl);
++		p->dl.dl_non_contending = 0;
++		/*
++		 * If the timer handler is currently running and the
++		 * timer cannot be cancelled, inactive_task_timer()
++		 * will see that dl_not_contending is not set, and
++		 * will not touch the rq's active utilization,
++		 * so we are still safe.
++		 */
++		if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
++			put_task_struct(p);
++	}
++	sub_rq_bw(p->dl.dl_bw, &rq->dl);
+ 	raw_spin_unlock(&rq->lock);
  }
-@@ -1791,7 +1829,9 @@ static int push_dl_task(struct rq *rq)
+ 
+@@ -1793,7 +1833,9 @@ static int push_dl_task(struct rq *rq)
  
  	deactivate_task(rq, next_task, 0);
  	sub_running_bw(next_task->dl.dl_bw, &rq->dl);
@@ -192,7 +221,7 @@ index 1951379..d70a7b9 100644
  	add_running_bw(next_task->dl.dl_bw, &later_rq->dl);
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
-@@ -1881,7 +1921,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1883,7 +1925,9 @@ static void pull_dl_task(struct rq *this_rq)
  
  			deactivate_task(src_rq, p, 0);
  			sub_running_bw(p->dl.dl_bw, &src_rq->dl);
@@ -202,7 +231,7 @@ index 1951379..d70a7b9 100644
  			add_running_bw(p->dl.dl_bw, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -1990,6 +2032,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1992,6 +2036,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (task_on_rq_queued(p) && p->dl.dl_runtime)
  		task_non_contending(p);
  
@@ -212,7 +241,7 @@ index 1951379..d70a7b9 100644
  	/*
  	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
  	 * at the 0-lag time, because the task could have been migrated
-@@ -2019,9 +2064,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
+@@ -2021,9 +2068,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
  		put_task_struct(p);
  
  	/* If p is not queued we will update its parameters at next wakeup. */

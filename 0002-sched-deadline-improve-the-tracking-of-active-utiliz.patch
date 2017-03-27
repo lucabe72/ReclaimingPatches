@@ -1,4 +1,4 @@
-From 086742323bf56553307af1210920c23cec0a33c6 Mon Sep 17 00:00:00 2001
+From 2551d550f71e85b0807a5d799cd9074619fbeff8 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -16,9 +16,9 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  include/linux/sched.h   |  17 ++++
  kernel/sched/core.c     |   3 +
- kernel/sched/deadline.c | 208 ++++++++++++++++++++++++++++++++++++++++++++----
+ kernel/sched/deadline.c | 210 ++++++++++++++++++++++++++++++++++++++++++++----
  kernel/sched/sched.h    |   2 +
- 4 files changed, 215 insertions(+), 15 deletions(-)
+ 4 files changed, 217 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
 index d67eee8..952cac8 100644
@@ -59,7 +59,7 @@ index d67eee8..952cac8 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 6d6cad9..bf0b0b9 100644
+index 2633b88..79afe6cc 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2165,6 +2165,7 @@ void __dl_clear_params(struct task_struct *p)
@@ -87,7 +87,7 @@ index 6d6cad9..bf0b0b9 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cef9adb..86aed82 100644
+index cef9adb..8fa9571 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -96,23 +96,23 @@ index cef9adb..86aed82 100644
  
 +void dl_change_utilization(struct task_struct *p, u64 new_bw)
 +{
-+	if (!task_on_rq_queued(p)) {
-+		struct rq *rq = task_rq(p);
++	if (task_on_rq_queued(p))
++		return;
 +
-+		if (p->dl.dl_non_contending) {
-+			sub_running_bw(p->dl.dl_bw, &rq->dl);
-+			p->dl.dl_non_contending = 0;
-+			/*
-+			 * If the timer handler is currently running and the
-+			 * timer cannot be cancelled, inactive_task_timer()
-+			 * will see that dl_not_contending is not set, and
-+			 * will not touch the rq's active utilization,
-+			 * so we are still safe.
-+			 */
-+			if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
-+				put_task_struct(p);
-+		}
-+	}
++	if (!p->dl.dl_non_contending)
++		return;
++
++	sub_running_bw(p->dl.dl_bw, &task_rq(p)->dl);
++	p->dl.dl_non_contending = 0;
++	/*
++	 * If the timer handler is currently running and the
++	 * timer cannot be cancelled, inactive_task_timer()
++	 * will see that dl_not_contending is not set, and
++	 * will not touch the rq's active utilization,
++	 * so we are still safe.
++	 */
++	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
++		put_task_struct(p);
 +}
 +
 +static void task_non_contending(struct task_struct *p)
@@ -301,36 +301,38 @@ index cef9adb..86aed82 100644
  }
  
  /*
-@@ -1151,6 +1294,28 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1151,6 +1294,30 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	return cpu;
  }
  
 +static void migrate_task_rq_dl(struct task_struct *p)
 +{
-+	if ((p->state == TASK_WAKING) && (p->dl.dl_non_contending)) {
-+		struct rq *rq = task_rq(p);
++	struct rq *rq;
 +
-+		raw_spin_lock(&rq->lock);
-+		sub_running_bw(p->dl.dl_bw, &rq->dl);
-+		p->dl.dl_non_contending = 0;
-+		/*
-+		 * If the timer handler is currently running and the
-+		 * timer cannot be cancelled, inactive_task_timer()
-+		 * will see that dl_not_contending is not set, and
-+		 * will not touch the rq's active utilization,
-+		 * so we are still safe.
-+		 */
-+		if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
-+			put_task_struct(p);
++	if (!(p->state == TASK_WAKING) || !(p->dl.dl_non_contending)) {
++		return;
 +
-+		raw_spin_unlock(&rq->lock);
-+	}
++ 	rq = task_rq(p);
++	raw_spin_lock(&rq->lock);
++	sub_running_bw(p->dl.dl_bw, &rq->dl);
++	p->dl.dl_non_contending = 0;
++	/*
++	 * If the timer handler is currently running and the
++	 * timer cannot be cancelled, inactive_task_timer()
++	 * will see that dl_not_contending is not set, and
++	 * will not touch the rq's active utilization,
++	 * so we are still safe.
++	 */
++	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
++		put_task_struct(p);
++
++	raw_spin_unlock(&rq->lock);
 +}
 +
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1792,13 +1957,23 @@ void __init init_sched_dl_class(void)
+@@ -1792,13 +1959,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -360,7 +362,7 @@ index cef9adb..86aed82 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1817,6 +1992,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1817,6 +1994,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -369,7 +371,7 @@ index cef9adb..86aed82 100644
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1891,6 +2068,7 @@ const struct sched_class dl_sched_class = {
+@@ -1891,6 +2070,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,
