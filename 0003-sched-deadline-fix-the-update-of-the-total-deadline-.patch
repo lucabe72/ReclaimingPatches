@@ -1,7 +1,7 @@
 From 86f996e2397eab8d581d9ed3e9286540bc61f5db Mon Sep 17 00:00:00 2001
-From: luca abeni <luca.abeni@santannapisa.it>
+From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
-Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
+Subject: [RFC v5 3/9] sched/deadline: fix the update of the total -deadline
  utilization
 
 Now that the inactive timer can be armed to fire at the 0-lag time,

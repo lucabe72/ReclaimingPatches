@@ -1,7 +1,7 @@
 From 6c36429276fe9070036332dd2fdce1b7426b7b87 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
-Subject: [PATCH 4/9] sched/deadline: implement GRUB accounting
+Subject: [RFC v5 4/9] sched/deadline: implement GRUB accounting
 
 According to the GRUB (Greedy Reclaimation of Unused Bandwidth)
 reclaiming algorithm, the runtime is not decreased as "dq = -dt",

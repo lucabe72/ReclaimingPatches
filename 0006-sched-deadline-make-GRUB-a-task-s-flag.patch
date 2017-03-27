@@ -1,7 +1,7 @@
 From b2265877c31d55faf01c971576a4c47c9397bd5d Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Jul 2015 11:25:03 +0200
-Subject: [PATCH 6/9] sched/deadline: make GRUB a task's flag
+Subject: [RFC v5 6/9] sched/deadline: make GRUB a task's flag
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>

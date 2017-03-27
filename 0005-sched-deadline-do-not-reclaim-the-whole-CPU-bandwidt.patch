@@ -1,7 +1,7 @@
 From 169db31a3ef874f496ac981f5ac1ec9bcde4054a Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
-Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
+Subject: [RFC v5 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
 
 Original GRUB tends to reclaim 100% of the CPU time... And this
 allows a CPU hog to starve non-deadline tasks.

@@ -1,7 +1,7 @@
 From 611a6119584cc4f61502fb2c9dfe0e6e03b6d0df Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 12:27:09 +0100
-Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
+Subject: [RFC v5 9/9] sched/deadline: also reclaim bandwidth not used by dl
  tasks
 
 This commit introduces a per-runqueue "extra utilization" that can be
@@ -9,7 +9,7 @@ reclaimed by deadline tasks. In this way, the maximum fraction of CPU
 time that can reclaimed by deadline tasks is fixed (and configurable)
 and does not depend on the total deadline utilization.
 
-Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
+Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 21 ++++++++++++---------

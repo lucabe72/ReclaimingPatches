@@ -1,7 +1,7 @@
 From 46c8f5211025b3844e66a185a532441533712331 Mon Sep 17 00:00:00 2001
-From: luca abeni <luca.abeni@santannapisa.it>
+From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 14 Mar 2017 08:56:10 +0100
-Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
+Subject: [RFC v5 7/9] sched/deadline: track the "total rq utilization" too
 
 The total rq utilization is defined as the sum of the utilisations of
 tasks that are "assigned" to a runqueue, independently from their state

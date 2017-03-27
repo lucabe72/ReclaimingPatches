@@ -1,7 +1,7 @@
 From 086742323bf56553307af1210920c23cec0a33c6 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
-Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
+Subject: [RFC v5 2/9] sched/deadline: improve the tracking of active
  utilization
 
 This patch implements a more theoretically sound algorithm for

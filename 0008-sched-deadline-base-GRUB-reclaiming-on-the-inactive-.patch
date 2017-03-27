@@ -1,7 +1,7 @@
 From c8682949da4d81066f9fdce1ea01292f41a7db62 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Fri, 6 Jan 2017 23:07:29 +0100
-Subject: [PATCH 8/9] sched/deadline: base GRUB reclaiming on the inactive
+Subject: [RFC v5 8/9] sched/deadline: base GRUB reclaiming on the inactive
  utilization
 
 Instead of decreasing the runtime as "dq = -Uact dt" (eventually
@@ -13,7 +13,7 @@ is given by the total utilization of deadline tasks.
 This approach solves some fairness issues that have been noticed with
 "traditional" global GRUB reclaiming.
 
-Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
+Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/deadline.c | 23 ++++++++++++++++-------
