@@ -1,4 +1,4 @@
-From 169db31a3ef874f496ac981f5ac1ec9bcde4054a Mon Sep 17 00:00:00 2001
+From fd597aa881f1a6234e326c3ee1b7a18375fbefa4 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 5/9] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -11,45 +11,36 @@ specified fraction of CPU time.
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/core.c     | 6 ++++++
- kernel/sched/deadline.c | 7 ++++++-
- kernel/sched/sched.h    | 6 ++++++
+ kernel/sched/core.c     |  1 +
+ kernel/sched/deadline.c |  3 ++-
+ kernel/sched/sched.h    | 15 +++++++++++++++
  3 files changed, 18 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 20c62e7..efa88eb 100644
+index c43cdab..29cf18b 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -6716,6 +6716,12 @@ static void sched_dl_do_global(void)
+@@ -6716,6 +6716,7 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
-+		if (dl_b->bw == -1)
-+			cpu_rq(cpu)->dl.deadline_bw_inv = 1 << 8;
-+		else
-+			cpu_rq(cpu)->dl.deadline_bw_inv =
-+				to_ratio(global_rt_runtime(),
-+					 global_rt_period()) >> 12;
++		init_dl_rq_bw_ratio(&cpu_rq(cpu)->dl);
  	}
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 6035311..e964051 100644
+index c68cb4d..19d70ea 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -212,6 +212,11 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -212,6 +212,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
-+	if (global_rt_runtime() == RUNTIME_INF)
-+		dl_rq->deadline_bw_inv = 1 << 8;
-+	else
-+		dl_rq->deadline_bw_inv =
-+			to_ratio(global_rt_runtime(), global_rt_period()) >> 12;
++	init_dl_rq_bw_ratio(dl_rq);
  }
  
  #ifdef CONFIG_SMP
-@@ -871,7 +876,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -871,7 +872,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {
@@ -59,10 +50,26 @@ index 6035311..e964051 100644
  
  /*
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 57bb79b..141549b 100644
+index 57bb79b..1de3baf 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -565,6 +565,12 @@ struct dl_rq {
+@@ -246,6 +246,15 @@ bool __dl_overflow(struct dl_bw *dl_b, int cpus, u64 old_bw, u64 new_bw)
+ 
+ void dl_change_utilization(struct task_struct *p, u64 new_bw);
+ extern void init_dl_bw(struct dl_bw *dl_b);
++static inline void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
++{
++	if (global_rt_runtime() == RUNTIME_INF) {
++		dl_rq->deadline_bw_inv = 1 << 8;
++	} else {
++		dl_rq->deadline_bw_inv = to_ratio(global_rt_runtime(),
++						  global_rt_period()) >> 12;
++	}
++}
+ 
+ #ifdef CONFIG_CGROUP_SCHED
+ 
+@@ -565,6 +574,12 @@ struct dl_rq {
  	 * task blocks
  	 */
  	u64 running_bw;
