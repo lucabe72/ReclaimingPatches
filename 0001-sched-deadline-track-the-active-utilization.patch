@@ -1,4 +1,4 @@
-From f51248d2f1313ce1123928fe8bf8c66690c4cd62 Mon Sep 17 00:00:00 2001
+From f67dcc96f345e4064ed317e62fbf23b1a3e31971 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
 Subject: [PATCH 1/9] sched/deadline: track the active utilization
@@ -23,7 +23,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 64 insertions(+), 3 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 99b2c33..c74260d 100644
+index a2ce590..cef9adb 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -43,6 +43,28 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
@@ -55,7 +55,7 @@ index 99b2c33..c74260d 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -909,8 +931,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -946,8 +968,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * parameters of the task might need updating. Otherwise,
  	 * we want a replenishment of its runtime.
  	 */
@@ -69,9 +69,9 @@ index 99b2c33..c74260d 100644
  	else if (flags & ENQUEUE_REPLENISH)
  		replenish_dl_entity(dl_se, pi_se);
  
-@@ -947,14 +973,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
- 		return;
- 	}
+@@ -998,14 +1024,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+ 	if (!p->dl.dl_throttled && dl_is_constrained(&p->dl))
+ 		dl_check_constrained_dl(&p->dl);
  
 +	if (p->on_rq == TASK_ON_RQ_MIGRATING || flags & ENQUEUE_RESTORE)
 +		add_running_bw(p->dl.dl_bw, &rq->dl);
@@ -97,7 +97,7 @@ index 99b2c33..c74260d 100644
  
  	enqueue_dl_entity(&p->dl, pi_se, flags);
  
-@@ -972,6 +1009,20 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1023,6 +1060,20 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  {
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
@@ -118,7 +118,7 @@ index 99b2c33..c74260d 100644
  }
  
  /*
-@@ -1500,7 +1551,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1551,7 +1602,9 @@ static int push_dl_task(struct rq *rq)
  	}
  
  	deactivate_task(rq, next_task, 0);
@@ -128,7 +128,7 @@ index 99b2c33..c74260d 100644
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
  
-@@ -1588,7 +1641,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1639,7 +1692,9 @@ static void pull_dl_task(struct rq *this_rq)
  			resched = true;
  
  			deactivate_task(src_rq, p, 0);
@@ -139,7 +139,7 @@ index 99b2c33..c74260d 100644
  			dmin = p->dl.deadline;
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 207fc1f..223ab04 100644
+index 57caf36..caaa7d3 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -558,6 +558,12 @@ struct dl_rq {
@@ -156,5 +156,5 @@ index 207fc1f..223ab04 100644
  
  #ifdef CONFIG_SMP
 -- 
-2.9.3
+2.7.4
 

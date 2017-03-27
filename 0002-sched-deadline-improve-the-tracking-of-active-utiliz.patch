@@ -1,4 +1,4 @@
-From 43db6762b360e8769ce668fe4a6405bb6df403f2 Mon Sep 17 00:00:00 2001
+From 086742323bf56553307af1210920c23cec0a33c6 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -59,10 +59,10 @@ index d67eee8..952cac8 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 6e87f7e..04341d5 100644
+index 6d6cad9..bf0b0b9 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2164,6 +2164,7 @@ void __dl_clear_params(struct task_struct *p)
+@@ -2165,6 +2165,7 @@ void __dl_clear_params(struct task_struct *p)
  
  	dl_se->dl_throttled = 0;
  	dl_se->dl_yielded = 0;
@@ -70,7 +70,7 @@ index 6e87f7e..04341d5 100644
  }
  
  /*
-@@ -2195,6 +2196,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
+@@ -2196,6 +2197,7 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
  
  	RB_CLEAR_NODE(&p->dl.rb_node);
  	init_dl_task_timer(&p->dl);
@@ -78,7 +78,7 @@ index 6e87f7e..04341d5 100644
  	__dl_clear_params(p);
  
  	INIT_LIST_HEAD(&p->rt.run_list);
-@@ -2517,6 +2519,7 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2518,6 +2520,7 @@ static int dl_overflow(struct task_struct *p, int policy,
  		   !__dl_overflow(dl_b, cpus, p->dl.dl_bw, new_bw)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
  		__dl_add(dl_b, new_bw);
@@ -87,7 +87,7 @@ index 6e87f7e..04341d5 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index c74260d..b048f48 100644
+index cef9adb..86aed82 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -198,7 +198,7 @@ index c74260d..b048f48 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -610,10 +711,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
+@@ -615,10 +716,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
  	 * The task might have changed its scheduling policy to something
  	 * different than SCHED_DEADLINE (through switched_from_dl()).
  	 */
@@ -210,7 +210,7 @@ index c74260d..b048f48 100644
  
  	/*
  	 * The task might have been boosted by someone else and might be in the
-@@ -800,6 +899,49 @@ static void update_curr_dl(struct rq *rq)
+@@ -837,6 +936,49 @@ static void update_curr_dl(struct rq *rq)
  	}
  }
  
@@ -260,7 +260,7 @@ index c74260d..b048f48 100644
  #ifdef CONFIG_SMP
  
  static void inc_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
-@@ -932,9 +1074,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -969,9 +1111,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -271,7 +271,7 @@ index c74260d..b048f48 100644
  		update_dl_entity(dl_se, pi_se);
  	}
  	else if (flags & ENQUEUE_REPLENISH)
-@@ -989,7 +1129,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1040,7 +1180,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
@@ -282,7 +282,7 @@ index c74260d..b048f48 100644
  		return;
  	}
  
-@@ -1014,7 +1156,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1065,7 +1207,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		sub_running_bw(p->dl.dl_bw, &rq->dl);
  
  	/*
@@ -292,7 +292,7 @@ index c74260d..b048f48 100644
  	 * when the task blocks and when it is terminating
  	 * (p->state == TASK_DEAD). We can handle the two cases in the same
  	 * way, because from GRUB's point of view the same thing is happening
-@@ -1022,7 +1165,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1073,7 +1216,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * or "inactive")
  	 */
  	if (flags & DEQUEUE_SLEEP)
@@ -301,7 +301,7 @@ index c74260d..b048f48 100644
  }
  
  /*
-@@ -1100,6 +1243,28 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1151,6 +1294,28 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	return cpu;
  }
  
@@ -330,7 +330,7 @@ index c74260d..b048f48 100644
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1741,13 +1906,23 @@ void __init init_sched_dl_class(void)
+@@ -1792,13 +1957,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -360,7 +360,7 @@ index c74260d..b048f48 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1766,6 +1941,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1817,6 +1992,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -369,7 +369,7 @@ index c74260d..b048f48 100644
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1840,6 +2017,7 @@ const struct sched_class dl_sched_class = {
+@@ -1891,6 +2068,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,
@@ -378,7 +378,7 @@ index c74260d..b048f48 100644
  	.rq_online              = rq_online_dl,
  	.rq_offline             = rq_offline_dl,
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 223ab04..0200eaf 100644
+index caaa7d3..57bb79b 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -244,6 +244,7 @@ bool __dl_overflow(struct dl_bw *dl_b, int cpus, u64 old_bw, u64 new_bw)
@@ -389,7 +389,7 @@ index 223ab04..0200eaf 100644
  extern void init_dl_bw(struct dl_bw *dl_b);
  
  #ifdef CONFIG_CGROUP_SCHED
-@@ -1488,6 +1489,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
+@@ -1490,6 +1491,7 @@ extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime
  extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);

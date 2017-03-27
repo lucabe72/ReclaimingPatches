@@ -1,4 +1,4 @@
-From 620813faac236975f28ea2c917952f795d3ca335 Mon Sep 17 00:00:00 2001
+From 86f996e2397eab8d581d9ed3e9286540bc61f5db Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
 Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
@@ -17,10 +17,10 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 27 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index ca147e9..6a138a2 100644
+index bf0b0b9..20c62e7 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -2482,9 +2482,6 @@ static inline int dl_bw_cpus(int i)
+@@ -2487,9 +2487,6 @@ static inline int dl_bw_cpus(int i)
   * allocated bandwidth to reflect the new situation.
   *
   * This function is called while holding p's rq->lock.
@@ -30,7 +30,7 @@ index ca147e9..6a138a2 100644
   */
  static int dl_overflow(struct task_struct *p, int policy,
  		       const struct sched_attr *attr)
-@@ -2509,16 +2506,29 @@ static int dl_overflow(struct task_struct *p, int policy,
+@@ -2514,16 +2511,29 @@ static int dl_overflow(struct task_struct *p, int policy,
  	cpus = dl_bw_cpus(task_cpu(p));
  	if (dl_policy(policy) && !task_has_dl_policy(p) &&
  	    !__dl_overflow(dl_b, cpus, 0, new_bw)) {
@@ -61,7 +61,7 @@ index ca147e9..6a138a2 100644
  		err = 0;
  	}
  	raw_spin_unlock(&dl_b->lock);
-@@ -3954,26 +3964,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
+@@ -3964,26 +3974,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
  	dl_se->dl_period = attr->sched_period ?: dl_se->dl_deadline;
  	dl_se->flags = attr->sched_flags;
  	dl_se->dl_bw = to_ratio(dl_se->dl_period, dl_se->dl_runtime);
@@ -89,7 +89,7 @@ index ca147e9..6a138a2 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 06226c8..a59014c 100644
+index 86aed82..238713e 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -121,8 +121,14 @@ static void task_non_contending(struct task_struct *p)
@@ -108,7 +108,7 @@ index 06226c8..a59014c 100644
  
  		return;
  	}
-@@ -911,10 +917,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -948,10 +954,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
@@ -125,7 +125,7 @@ index 06226c8..a59014c 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1422,15 +1434,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1473,15 +1485,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

@@ -1,4 +1,4 @@
-From 52e95052585f510d4d13a7ca54c7e332c8c24973 Mon Sep 17 00:00:00 2001
+From 6c36429276fe9070036332dd2fdce1b7426b7b87 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 4/9] sched/deadline: implement GRUB accounting
@@ -17,10 +17,10 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  1 file changed, 14 insertions(+)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index a59014c..03dd341 100644
+index 238713e..6035311 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -825,6 +825,19 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)
+@@ -862,6 +862,19 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)
  extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  
  /*
@@ -40,7 +40,7 @@ index a59014c..03dd341 100644
   * Update the current task's runtime statistics (provided it is still
   * a -deadline task and has not been removed from the dl_rq).
   */
-@@ -866,6 +879,7 @@ static void update_curr_dl(struct rq *rq)
+@@ -903,6 +916,7 @@ static void update_curr_dl(struct rq *rq)
  
  	sched_rt_avg_update(rq, delta_exec);
  
