@@ -1,4 +1,4 @@
-From e19887683da418e61374f9980b8aad2971a732dc Mon Sep 17 00:00:00 2001
+From aa6e5976438cc639457bb086c9caa0b9f6239c0f Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 27 Mar 2017 13:23:25 +0200
 Subject: [PATCH 7/9] sched/deadline: track the "total rq utilization" too
@@ -16,7 +16,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 94 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 196d70b..d3f6ccc 100644
+index 546e0e1..e5bcacc 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -172,7 +172,7 @@ index 196d70b..d3f6ccc 100644
  
  	/*
  	 * This check allows to start the inactive timer (or to immediately
-@@ -1330,23 +1368,25 @@ static void migrate_task_rq_dl(struct task_struct *p)
+@@ -1330,7 +1368,7 @@ static void migrate_task_rq_dl(struct task_struct *p)
  {
  	struct rq *rq;
  
@@ -181,6 +181,9 @@ index 196d70b..d3f6ccc 100644
  		return;
  
   	rq = task_rq(p);
+@@ -1340,18 +1378,20 @@ static void migrate_task_rq_dl(struct task_struct *p)
+ 	 * rq->lock is not... So, lock it
+ 	 */
  	raw_spin_lock(&rq->lock);
 -	sub_running_bw(p->dl.dl_bw, &rq->dl);
 -	p->dl.dl_non_contending = 0;
@@ -211,7 +214,7 @@ index 196d70b..d3f6ccc 100644
  	raw_spin_unlock(&rq->lock);
  }
  
-@@ -1793,7 +1833,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1798,7 +1838,9 @@ static int push_dl_task(struct rq *rq)
  
  	deactivate_task(rq, next_task, 0);
  	sub_running_bw(next_task->dl.dl_bw, &rq->dl);
@@ -221,7 +224,7 @@ index 196d70b..d3f6ccc 100644
  	add_running_bw(next_task->dl.dl_bw, &later_rq->dl);
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
-@@ -1883,7 +1925,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1888,7 +1930,9 @@ static void pull_dl_task(struct rq *this_rq)
  
  			deactivate_task(src_rq, p, 0);
  			sub_running_bw(p->dl.dl_bw, &src_rq->dl);
@@ -231,7 +234,7 @@ index 196d70b..d3f6ccc 100644
  			add_running_bw(p->dl.dl_bw, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -1992,6 +2036,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1997,6 +2041,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (task_on_rq_queued(p) && p->dl.dl_runtime)
  		task_non_contending(p);
  
@@ -241,7 +244,7 @@ index 196d70b..d3f6ccc 100644
  	/*
  	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
  	 * at the 0-lag time, because the task could have been migrated
-@@ -2021,9 +2068,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
+@@ -2026,9 +2073,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
  		put_task_struct(p);
  
  	/* If p is not queued we will update its parameters at next wakeup. */

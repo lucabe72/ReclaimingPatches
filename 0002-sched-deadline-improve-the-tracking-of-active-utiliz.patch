@@ -1,4 +1,4 @@
-From 0ac2107958b82d9ce9d76c7b4a2666e8574a300f Mon Sep 17 00:00:00 2001
+From e2042f09207a9a1c45c3b6c1022c94d7b9646813 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
@@ -16,9 +16,9 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  include/linux/sched.h   |  17 ++++
  kernel/sched/core.c     |   3 +
- kernel/sched/deadline.c | 210 ++++++++++++++++++++++++++++++++++++++++++++----
+ kernel/sched/deadline.c | 215 ++++++++++++++++++++++++++++++++++++++++++++----
  kernel/sched/sched.h    |   2 +
- 4 files changed, 217 insertions(+), 15 deletions(-)
+ 4 files changed, 222 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
 index d67eee8..952cac8 100644
@@ -87,7 +87,7 @@ index 2633b88..79afe6cc 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cef9adb..6c166c8 100644
+index cef9adb..b085e20 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -301,7 +301,7 @@ index cef9adb..6c166c8 100644
  }
  
  /*
-@@ -1151,6 +1294,30 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1151,6 +1294,35 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	return cpu;
  }
  
@@ -313,6 +313,11 @@ index cef9adb..6c166c8 100644
 +		return;
 +
 + 	rq = task_rq(p);
++	/*
++	 * Since p->state == TASK_WAKING, set_task_cpu() has been called
++	 * from try_to_wake_up(). Hence, p->pi_lock is locked, but
++	 * rq->lock is not... So, lock it
++	 */
 +	raw_spin_lock(&rq->lock);
 +	sub_running_bw(p->dl.dl_bw, &rq->dl);
 +	p->dl.dl_non_contending = 0;
@@ -332,7 +337,7 @@ index cef9adb..6c166c8 100644
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1792,13 +1959,23 @@ void __init init_sched_dl_class(void)
+@@ -1792,13 +1964,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -362,7 +367,7 @@ index cef9adb..6c166c8 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1817,6 +1994,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1817,6 +1999,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -371,7 +376,7 @@ index cef9adb..6c166c8 100644
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1891,6 +2070,7 @@ const struct sched_class dl_sched_class = {
+@@ -1891,6 +2075,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,
