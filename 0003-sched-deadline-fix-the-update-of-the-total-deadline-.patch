@@ -1,7 +1,7 @@
-From 86f996e2397eab8d581d9ed3e9286540bc61f5db Mon Sep 17 00:00:00 2001
+From 58b32c86f5662c5fe0d3280852550d102528da3e Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
-Subject: [PATCH 3/9] sched/deadline: fix the update of the total -deadline
+Subject: [PATCH 03/10] sched/deadline: fix the update of the total -deadline
  utilization
 
 Now that the inactive timer can be armed to fire at the 0-lag time,
@@ -17,7 +17,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 27 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index bf0b0b9..20c62e7 100644
+index 79afe6cc..c43cdab 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2487,9 +2487,6 @@ static inline int dl_bw_cpus(int i)
@@ -89,7 +89,7 @@ index bf0b0b9..20c62e7 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 86aed82..238713e 100644
+index b085e20..a44b251 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -121,8 +121,14 @@ static void task_non_contending(struct task_struct *p)
@@ -125,7 +125,7 @@ index 86aed82..238713e 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1473,15 +1485,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1480,15 +1492,6 @@ static void task_fork_dl(struct task_struct *p)
  
  static void task_dead_dl(struct task_struct *p)
  {

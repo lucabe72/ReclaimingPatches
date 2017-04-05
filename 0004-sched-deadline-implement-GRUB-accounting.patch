@@ -1,7 +1,7 @@
-From 6c36429276fe9070036332dd2fdce1b7426b7b87 Mon Sep 17 00:00:00 2001
+From e31f818c39d6d0acb8c2b68cb143e1dd79f2f777 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
-Subject: [PATCH 4/9] sched/deadline: implement GRUB accounting
+Subject: [PATCH 04/10] sched/deadline: implement GRUB accounting
 
 According to the GRUB (Greedy Reclaimation of Unused Bandwidth)
 reclaiming algorithm, the runtime is not decreased as "dq = -dt",
@@ -17,7 +17,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  1 file changed, 14 insertions(+)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 238713e..6035311 100644
+index a44b251..c68cb4d 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -862,6 +862,19 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)

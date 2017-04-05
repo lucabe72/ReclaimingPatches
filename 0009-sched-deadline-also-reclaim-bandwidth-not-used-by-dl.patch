@@ -1,7 +1,7 @@
 From d6a7a5db89ba5f3a4b5deb2bc1b39805e8d4165d Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 27 Mar 2017 14:00:45 +0200
-Subject: [PATCH 9/9] sched/deadline: also reclaim bandwidth not used by dl
+Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
  tasks
 
 This commit introduces a per-runqueue "extra utilization" that can be

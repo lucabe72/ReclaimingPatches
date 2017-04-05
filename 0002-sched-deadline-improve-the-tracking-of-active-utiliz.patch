@@ -1,7 +1,7 @@
 From e2042f09207a9a1c45c3b6c1022c94d7b9646813 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
-Subject: [PATCH 2/9] sched/deadline: improve the tracking of active
+Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
  utilization
 
 This patch implements a more theoretically sound algorithm for
