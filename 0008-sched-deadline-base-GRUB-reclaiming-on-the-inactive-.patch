@@ -1,4 +1,4 @@
-From 9330f9f30089cc2f6ee8238e68ba96376677d269 Mon Sep 17 00:00:00 2001
+From f3488384ea47212db2f16933375ee0bcbfc55b5a Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Fri, 6 Jan 2017 23:07:29 +0100
 Subject: [PATCH 08/10] sched/deadline: base GRUB reclaiming on the inactive
@@ -20,7 +20,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  1 file changed, 16 insertions(+), 7 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 7a909a3..bc0b517 100644
+index 9b2e421..3d2fdf1 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -898,14 +898,23 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);

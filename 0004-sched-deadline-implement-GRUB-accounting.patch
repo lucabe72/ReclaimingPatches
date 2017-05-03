@@ -1,4 +1,4 @@
-From e31f818c39d6d0acb8c2b68cb143e1dd79f2f777 Mon Sep 17 00:00:00 2001
+From 7e8dd51a0c62d7b519d1e367b8eb61d8539c3d70 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 04/10] sched/deadline: implement GRUB accounting
@@ -17,7 +17,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  1 file changed, 14 insertions(+)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index a44b251..c68cb4d 100644
+index 31e24c3..bc608d7 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -862,6 +862,19 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)

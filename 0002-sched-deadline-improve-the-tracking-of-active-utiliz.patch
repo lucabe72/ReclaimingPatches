@@ -1,4 +1,4 @@
-From e2042f09207a9a1c45c3b6c1022c94d7b9646813 Mon Sep 17 00:00:00 2001
+From 6b97946c1a25f6f28157f5371e7e15330eb9dd66 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
@@ -21,7 +21,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  4 files changed, 222 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index d67eee8..952cac8 100644
+index ba080e5..b4d4d9d 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
 @@ -445,16 +445,33 @@ struct sched_dl_entity {
@@ -59,7 +59,7 @@ index d67eee8..952cac8 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 2633b88..79afe6cc 100644
+index 27b4dd5..78fecbf 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2165,6 +2165,7 @@ void __dl_clear_params(struct task_struct *p)
@@ -87,7 +87,7 @@ index 2633b88..79afe6cc 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cef9adb..b085e20 100644
+index cef9adb..9bff033 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -309,7 +309,7 @@ index cef9adb..b085e20 100644
 +{
 +	struct rq *rq;
 +
-+	if (!(p->state == TASK_WAKING) || !(p->dl.dl_non_contending)) {
++	if (!(p->state == TASK_WAKING) || !(p->dl.dl_non_contending))
 +		return;
 +
 +	rq = task_rq(p);

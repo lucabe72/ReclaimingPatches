@@ -1,4 +1,4 @@
-From fd597aa881f1a6234e326c3ee1b7a18375fbefa4 Mon Sep 17 00:00:00 2001
+From 875c8f6f4a630ce1eeb62dec4f58fab256556544 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -13,14 +13,14 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     |  1 +
  kernel/sched/deadline.c |  3 ++-
- kernel/sched/sched.h    | 15 +++++++++++++++
- 3 files changed, 18 insertions(+), 1 deletion(-)
+ kernel/sched/sched.h    | 16 ++++++++++++++++
+ 3 files changed, 19 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index c43cdab..29cf18b 100644
+index 08eb3f3..44ce48c 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -6716,6 +6716,7 @@ static void sched_dl_do_global(void)
+@@ -6758,6 +6758,7 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -29,7 +29,7 @@ index c43cdab..29cf18b 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index c68cb4d..19d70ea 100644
+index bc608d7..3693305 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -212,6 +212,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
@@ -50,26 +50,10 @@ index c68cb4d..19d70ea 100644
  
  /*
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 57bb79b..1de3baf 100644
+index 57bb79b..1d2adc8 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -246,6 +246,15 @@ bool __dl_overflow(struct dl_bw *dl_b, int cpus, u64 old_bw, u64 new_bw)
- 
- void dl_change_utilization(struct task_struct *p, u64 new_bw);
- extern void init_dl_bw(struct dl_bw *dl_b);
-+static inline void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
-+{
-+	if (global_rt_runtime() == RUNTIME_INF) {
-+		dl_rq->bw_ratio = 1 << 8;
-+	} else {
-+		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
-+						  global_rt_period()) >> 12;
-+	}
-+}
- 
- #ifdef CONFIG_CGROUP_SCHED
- 
-@@ -565,6 +574,12 @@ struct dl_rq {
+@@ -565,6 +565,12 @@ struct dl_rq {
  	 * task blocks
  	 */
  	u64 running_bw;
@@ -82,6 +66,23 @@ index 57bb79b..1de3baf 100644
  };
  
  #ifdef CONFIG_SMP
+@@ -1495,6 +1501,16 @@ extern void init_inactive_task_timer(struct sched_dl_entity *dl_se);
+ 
+ unsigned long to_ratio(u64 period, u64 runtime);
+ 
++static inline void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
++{
++	if (global_rt_runtime() == RUNTIME_INF) {
++		dl_rq->bw_ratio = 1 << 8;
++	} else {
++		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
++						  global_rt_period()) >> 12;
++	}
++}
++
+ extern void init_entity_runnable_average(struct sched_entity *se);
+ extern void post_init_entity_util_avg(struct sched_entity *se);
+ 
 -- 
 2.7.4
 

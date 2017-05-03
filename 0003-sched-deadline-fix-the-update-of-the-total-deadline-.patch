@@ -1,4 +1,4 @@
-From 58b32c86f5662c5fe0d3280852550d102528da3e Mon Sep 17 00:00:00 2001
+From 1dab1170d77b62cac4852c18375192500412eb9e Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
 Subject: [PATCH 03/10] sched/deadline: fix the update of the total -deadline
@@ -17,7 +17,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 27 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 79afe6cc..c43cdab 100644
+index 78fecbf..08eb3f3 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2487,9 +2487,6 @@ static inline int dl_bw_cpus(int i)
@@ -61,7 +61,7 @@ index 79afe6cc..c43cdab 100644
  		err = 0;
  	}
  	raw_spin_unlock(&dl_b->lock);
-@@ -3964,26 +3974,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
+@@ -4007,26 +4017,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
  	dl_se->dl_period = attr->sched_period ?: dl_se->dl_deadline;
  	dl_se->flags = attr->sched_flags;
  	dl_se->dl_bw = to_ratio(dl_se->dl_period, dl_se->dl_runtime);
@@ -89,7 +89,7 @@ index 79afe6cc..c43cdab 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index b085e20..a44b251 100644
+index 9bff033..31e24c3 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -121,8 +121,14 @@ static void task_non_contending(struct task_struct *p)
