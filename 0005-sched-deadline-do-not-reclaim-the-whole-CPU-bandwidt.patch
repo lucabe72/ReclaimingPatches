@@ -45,7 +45,7 @@ index c68cb4d..19d70ea 100644
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {
 -	return (delta * rq->dl.running_bw) >> 20;
-+	return (delta * rq->dl.running_bw * rq->dl.deadline_bw_inv) >> 20 >> 8;
++	return (delta * rq->dl.running_bw * rq->dl.bw_ratio) >> 20 >> 8;
  }
  
  /*
@@ -60,9 +60,9 @@ index 57bb79b..1de3baf 100644
 +static inline void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
 +{
 +	if (global_rt_runtime() == RUNTIME_INF) {
-+		dl_rq->deadline_bw_inv = 1 << 8;
++		dl_rq->bw_ratio = 1 << 8;
 +	} else {
-+		dl_rq->deadline_bw_inv = to_ratio(global_rt_runtime(),
++		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
 +						  global_rt_period()) >> 12;
 +	}
 +}
@@ -78,7 +78,7 @@ index 57bb79b..1de3baf 100644
 +	 * Inverse of the fraction of CPU utilization that can be reclaimed
 +	 * by the GRUB algorithm.
 +	 */
-+	u64 deadline_bw_inv;
++	u64 bw_ratio;
  };
  
  #ifdef CONFIG_SMP

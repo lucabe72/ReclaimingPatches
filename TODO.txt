@@ -1,5 +1,5 @@
 - Braces on "else": patches 1, 2, 8
-- deadline_bw_inv -> bw_ratio
+- deadline_bw_inv -> bw_ratio			DONE!
 - Patch 5: 
 >  
 >  u64 grub_reclaim(u64 delta, struct rq *rq)

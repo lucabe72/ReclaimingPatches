@@ -41,7 +41,7 @@ index 7a909a3..bc0b517 100644
 -u64 grub_reclaim(u64 delta, struct rq *rq)
 +u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
  {
--	return (delta * rq->dl.running_bw * rq->dl.deadline_bw_inv) >> 20 >> 8;
+-	return (delta * rq->dl.running_bw * rq->dl.bw_ratio) >> 20 >> 8;
 +	u64 u_act;
 +
 +	if (rq->dl.this_bw - rq->dl.running_bw > (1 << 20) - u)

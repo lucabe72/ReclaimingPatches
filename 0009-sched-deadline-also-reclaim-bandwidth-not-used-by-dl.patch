@@ -97,7 +97,7 @@ index bc0b517..f460964 100644
 -		u_act = (1 << 20) - rq->dl.this_bw + rq->dl.running_bw;
 +	u_act = (1 << 20) - rq->dl.this_bw - rq->dl.extra_bw +
 +		rq->dl.running_bw;
-+	u_act_min = (u * rq->dl.deadline_bw_inv) >> 8;
++	u_act_min = (u * rq->dl.bw_ratio) >> 8;
 +	if (u_act < u_act_min)
 +		u_act = u_act_min;
  
@@ -163,10 +163,10 @@ index 2e3074f..5f31825 100644
 +static inline void init_dl_rq_bw_ratio(struct dl_rq *dl_rq, u64 new_bw)
  {
  	if (global_rt_runtime() == RUNTIME_INF) {
- 		dl_rq->deadline_bw_inv = 1 << 8;
+ 		dl_rq->bw_ratio = 1 << 8;
 +		cpu_rq(cpu)->dl.extra_bw = 1 << 20;
  	} else {
- 		dl_rq->deadline_bw_inv = to_ratio(global_rt_runtime(),
+ 		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
  						  global_rt_period()) >> 12;
 +		cpu_rq(cpu)->dl.extra_bw = to_ratio(global_rt_period(),
 +						    global_rt_runtime());
