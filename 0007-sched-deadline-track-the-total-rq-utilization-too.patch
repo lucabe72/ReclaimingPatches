@@ -197,7 +197,7 @@ index 74cdf6c..7a909a3 100644
 -	if (hrtimer_try_to_cancel(&p->dl.inactive_timer) == 1)
 -		put_task_struct(p);
 -
-+	if (p->dl.dl_non_contending)) {
++	if (p->dl.dl_non_contending) {
 +		sub_running_bw(p->dl.dl_bw, &rq->dl);
 +		p->dl.dl_non_contending = 0;
 +		/*
