@@ -312,7 +312,7 @@ index cef9adb..b085e20 100644
 +	if (!(p->state == TASK_WAKING) || !(p->dl.dl_non_contending)) {
 +		return;
 +
-+ 	rq = task_rq(p);
++	rq = task_rq(p);
 +	/*
 +	 * Since p->state == TASK_WAKING, set_task_cpu() has been called
 +	 * from try_to_wake_up(). Hence, p->pi_lock is locked, but

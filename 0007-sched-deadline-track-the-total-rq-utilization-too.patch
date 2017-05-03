@@ -180,7 +180,7 @@ index 74cdf6c..7a909a3 100644
 +	if (p->state != TASK_WAKING)
  		return;
  
-  	rq = task_rq(p);
+ 	rq = task_rq(p);
 @@ -1336,18 +1374,20 @@ static void migrate_task_rq_dl(struct task_struct *p)
  	 * rq->lock is not... So, lock it
  	 */
