@@ -1,3 +1,150 @@
-Check reviews to v2 to see if something is still missing
+- Braces on "else": patches 1, 2, 8
+- deadline_bw_inv -> bw_ratio
+- Patch 5: 
+>  
+>  u64 grub_reclaim(u64 delta, struct rq *rq)
+>  {
+> +	return (delta * rq->dl.running_bw * rq->dl.deadline_bw_inv) >> 20 >> 8;
+>  }  
 
-Add comment on >> 20 >> 8
+At which point we might want a note about how this doesn't overflow I
+suppose.
+
+Also:
+
+	delta *= rq->dl.running_bw;
+	delta *= rq->dl.bw_ratio;
+	delta >>= 20 + 8;
+
+	return delta;
+
+Might be more readable ?
+
+Alternatively:
+
+	delta = (delta * rq->dl.running_bw) >> 8;
+	delta = (delta * rq->dl.bw_ratio) >> 20;
+
+	return delta;
+
+But I doubt we care about those extra 8 bit of space; delta should not
+be over 36 bits (~64 seconds) anyway I suppose. 
+
+- Patch 2:
+In general I feel it would be nice to have a state diagram included
+somewhere near these two functions. It would be nice to not have to dig
+out the PDF every time.
+
+- Patch 2:
+To be consistent with the other DL related functions:
+
+s/init_inactive_task_timer(...)/init_dl_inactive_task_timer(...)
+
+- Patch 1:
+> +       /*
+> +        * "Active utilization" for this runqueue: increased when a
+> +        * task wakes up (becomes TASK_RUNNING) and decreased when a
+> +        * task blocks
+> +        */
+> +       u64 running_bw;  
+
+Would it be a good idea to initialise and clear this field in
+rq_online/offline_dl()?
+
+- Patch 8, changelog:
+> In this way, the maximum fraction of CPU time that can be reclaimed
+> is given by the total utilization of deadline tasks.
+> This approach solves some fairness issues that have been noticed with
+> "traditional" global GRUB reclaiming.  
+
+I think the Changelog could do with explicit enumeration of what "some"
+is.
+
+- Patch 8:
+>   * This function implements the GRUB accounting rule:
+>   * according to the GRUB reclaiming algorithm, the runtime is
+> + * not decreased as "dq = -dt", but as "dq = (1 - Uinact) dt", where  
+
+Changelog had it right I think: dq = -(1 - Uinact) dt
+
+
+>  {
+> +	u64 u_act;
+> +
+> +	if (rq->dl.this_bw - rq->dl.running_bw > (1 << 20) - u)
+> +		u_act = u;
+> +	else
+> +		u_act = (1 << 20) - rq->dl.this_bw + rq->dl.running_bw;
+> +
+> +	return (delta * u_act) >> 20;  
+
+But that's not what is done here I think, something like this instead:
+
+	Uinact = Utot - Uact
+
+		-t_u dt ; Uinact > (1 - t_u)
+	dq = {
+		-(1 - Uinact) dt
+
+
+And nowhere do we have an explanation for that.
+
+Now, I suspect we can write that like: dq = -max{ t_u, (1 - Uinact) } dt,
+which would suggest this is a sanity check on Utot, which I suspect can
+be over 1. Is this what is happening?
+
+
+
+#define BW_SHIFT	20
+#define BW_UNIT		(1 << BW_SHIFT)
+
+static inline
+u64 grub_reclaim(u64 delta, struct rq *rq, struct sched_dl_entity *dl_se)
+{
+	u64 u_inact = rq->dl.this_bw - rq->dl.running_bw; /* Utot - Uact */
+	u64 u_act;
+
+	/*
+         * What we want to write is:
+	 *
+	 *   max(BW_UNIT - u_inact, dl_se->dl_bw)
+	 *
+	 * but we cannot do that since Utot can be larger than 1,
+	 * which means u_inact can be larger than 1, which would
+	 * have the above result in negative values.
+	 */
+	if (u_inact > (BW_UNIT - dl_se->dl_bw))
+		u_act = dl_se->dl_bw;
+	else
+		u_act = BW_UNIT - u_inact;
+
+	return (delta * u_act) >> BW_SHIFT;
+}
+
+Hmm?
+
+
+> > Now, I suspect we can write that like: dq = -max{ t_u, (1 - Uinact) }
+> > dt, which would suggest this is a sanity check on Utot, which I
+> > suspect can be over 1. Is this what is happening?  
+> 
+> Right... I'll fix the code and comments according to your suggestion.  
+
+But doesn't that suggest there is now another corner case where we
+'always' select t_u because of Utot overload?
+
+My intuition suggests we'd reclaim insufficient time in that case, but
+I've not thought much about it.
+
+I feel we want a few words explaining the trade-offs made here and the
+corner cases explored.
+
+Does that make sense?
+
+
+A:
+I think it is a good idea; maybe at the OSPM summit we can work on
+finding the correct wording for these comments?
+
+
+#Add comment on >> 20 >> 8
