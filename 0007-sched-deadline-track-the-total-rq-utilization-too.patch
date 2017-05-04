@@ -1,4 +1,4 @@
-From b7644a21ddc163385a53975bb1938ae6444e364b Mon Sep 17 00:00:00 2001
+From 18412fae5db6694dee94e19749286bb24dda4523 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Wed, 3 May 2017 23:41:45 +0200
 Subject: [PATCH 07/10] sched/deadline: track the "total rq utilization" too
@@ -16,7 +16,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 94 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index dad4a35..9b2e421 100644
+index e57f7d1..309f64a 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -137,8 +137,8 @@ index dad4a35..9b2e421 100644
 -		task_contending(dl_se);
 +		task_contending(dl_se, flags);
  		update_dl_entity(dl_se, pi_se);
- 	}
- 	else if (flags & ENQUEUE_REPLENISH)
+ 	} else if (flags & ENQUEUE_REPLENISH) {
+ 		replenish_dl_entity(dl_se, pi_se);
 @@ -1192,8 +1226,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	if (!p->dl.dl_throttled && dl_is_constrained(&p->dl))
  		dl_check_constrained_dl(&p->dl);
@@ -259,7 +259,7 @@ index dad4a35..9b2e421 100644
  	 * If p is boosted we already updated its params in
  	 * rt_mutex_setprio()->enqueue_task(..., ENQUEUE_REPLENISH),
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 1d2adc8..4e652ab 100644
+index a3f0ca7..0bb29fb 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -567,6 +567,17 @@ struct dl_rq {

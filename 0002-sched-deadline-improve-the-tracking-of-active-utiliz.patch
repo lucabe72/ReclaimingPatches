@@ -1,4 +1,4 @@
-From 6b97946c1a25f6f28157f5371e7e15330eb9dd66 Mon Sep 17 00:00:00 2001
+From a2d5992dd971b37b9de08ef743f4bc05a15e9224 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
@@ -87,7 +87,7 @@ index 27b4dd5..78fecbf 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index cef9adb..9bff033 100644
+index ab625cc..c549377 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -269,8 +269,8 @@ index cef9adb..9bff033 100644
 -		add_running_bw(dl_se->dl_bw, dl_rq);
 +		task_contending(dl_se);
  		update_dl_entity(dl_se, pi_se);
- 	}
- 	else if (flags & ENQUEUE_REPLENISH)
+ 	} else if (flags & ENQUEUE_REPLENISH) {
+ 		replenish_dl_entity(dl_se, pi_se);
 @@ -1040,7 +1180,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */

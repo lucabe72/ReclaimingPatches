@@ -1,4 +1,4 @@
-From 3ff2cdaf80fd0288dd670364a98fbb3ed9ec6ac9 Mon Sep 17 00:00:00 2001
+From 990d1ebc50601ecdad0d99a8755fd0553a3827e0 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
 Subject: [PATCH 01/10] sched/deadline: track the active utilization
@@ -18,12 +18,12 @@ Signed-off-by: Juri Lelli <juri.lelli@arm.com>
 Signed-off-by: Luca Abeni <luca.abeni@unitn.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/deadline.c | 61 ++++++++++++++++++++++++++++++++++++++++++++++---
+ kernel/sched/deadline.c | 63 +++++++++++++++++++++++++++++++++++++++++++++----
  kernel/sched/sched.h    |  6 +++++
- 2 files changed, 64 insertions(+), 3 deletions(-)
+ 2 files changed, 65 insertions(+), 4 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index a2ce590..cef9adb 100644
+index a2ce590..ab625cc 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -43,6 +43,28 @@ static inline int on_dl_rq(struct sched_dl_entity *dl_se)
@@ -55,7 +55,7 @@ index a2ce590..cef9adb 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -946,8 +968,12 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -946,10 +968,14 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * parameters of the task might need updating. Otherwise,
  	 * we want a replenishment of its runtime.
  	 */
@@ -65,10 +65,13 @@ index a2ce590..cef9adb 100644
 +
 +		add_running_bw(dl_se->dl_bw, dl_rq);
  		update_dl_entity(dl_se, pi_se);
-+	}
- 	else if (flags & ENQUEUE_REPLENISH)
+-	else if (flags & ENQUEUE_REPLENISH)
++	} else if (flags & ENQUEUE_REPLENISH) {
  		replenish_dl_entity(dl_se, pi_se);
++	}
  
+ 	__enqueue_dl_entity(dl_se);
+ }
 @@ -998,14 +1024,25 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	if (!p->dl.dl_throttled && dl_is_constrained(&p->dl))
  		dl_check_constrained_dl(&p->dl);
