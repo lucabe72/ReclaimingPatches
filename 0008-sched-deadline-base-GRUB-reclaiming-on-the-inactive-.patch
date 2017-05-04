@@ -1,29 +1,36 @@
-From f3488384ea47212db2f16933375ee0bcbfc55b5a Mon Sep 17 00:00:00 2001
-From: Luca Abeni <luca.abeni@santannapisa.it>
-Date: Fri, 6 Jan 2017 23:07:29 +0100
+From aa107128c6028f10e8d007eeb4966443fbfdf241 Mon Sep 17 00:00:00 2001
+From: luca abeni <luca.abeni@santannapisa.it>
+Date: Thu, 4 May 2017 21:09:30 +0200
 Subject: [PATCH 08/10] sched/deadline: base GRUB reclaiming on the inactive
  utilization
 
 Instead of decreasing the runtime as "dq = -Uact dt" (eventually
 divided by the maximum utilization available for deadline tasks),
-decrease it as "dq = -(1 - Uinact) dt", where Uinact is the "inactive
-utilization".
+decrease it as "dq = -max{u, (1 - Uinact)} dt", where u is the task
+utilization and Uinact is the "inactive utilization".
 In this way, the maximum fraction of CPU time that can be reclaimed
 is given by the total utilization of deadline tasks.
-This approach solves some fairness issues that have been noticed with
-"traditional" global GRUB reclaiming.
+This approach solves a fairness issue with "traditional" global GRUB
+reclaiming: using the traditional GRUB algorithm, if tasks are
+allocated to the various cores in a non-uniform way, and the
+reclaiming mechanism allows some tasks to reclaim more time than
+others. This issue is visible starting 11 time-consuming tasks with
+runtime 10ms and period 30ms (total utilization 3.666) on a 4-cores
+system: some tasks will receive much more than the reserved runtime
+(thanks to the reclaiming mechanism), while other tasks will receive
+less than the reserved runtime.
 
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/deadline.c | 23 ++++++++++++++++-------
- 1 file changed, 16 insertions(+), 7 deletions(-)
+ kernel/sched/deadline.c | 39 ++++++++++++++++++++++++---------------
+ 1 file changed, 24 insertions(+), 15 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 9b2e421..3d2fdf1 100644
+index 9e29d85..4a9803c 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -898,14 +898,23 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -898,23 +898,32 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  /*
   * This function implements the GRUB accounting rule:
   * according to the GRUB reclaiming algorithm, the runtime is
@@ -31,34 +38,51 @@ index 9b2e421..3d2fdf1 100644
 - * Uact is the (per-runqueue) active utilization.
 - * Since rq->dl.running_bw contains Uact * 2^20, the result
 - * has to be shifted right by 20.
-+ * not decreased as "dq = -dt", but as "dq = (1 - Uinact) dt", where
-+ * Uinact is the (per-runqueue) inactive utilization, computed as the
-+ * difference between the "total runqueue utilization" and the runqueue
+- * To reclaim only a fraction Umax of the CPU time, the
+- * runtime accounting rule is modified as
+- * "dq = -Uact / Umax dt"; since rq->dl.bw_ratio contains
+- * 2^8 / Umax, delta is multiplied by bw_ratio and shifted
+- * right by 8.
++ * not decreased as "dq = -dt", but as "dq = -max{u, (1 - Uinact)} dt",
++ * where u is the utilization of the task and Uinact is the
++ * (per-runqueue) inactive utilization, computed as the difference
++ * between the "total runqueue utilization" and the runqueue
 + * active utilization.
 + * Since rq->dl.running_bw and rq->dl.this_bw contain utilizations
 + * multiplied by 2^20, the result has to be shifted right by 20.
   */
 -u64 grub_reclaim(u64 delta, struct rq *rq)
-+u64 grub_reclaim(u64 delta, struct rq *rq, u64 u)
++#define BW_SHIFT 20
++#define BW_UNIT (1 << BW_SHIFT)
++u64 grub_reclaim(u64 delta, struct rq *rq, struct sched_dl_entity *dl_se)
  {
--	return (delta * rq->dl.running_bw * rq->dl.bw_ratio) >> 20 >> 8;
+-	delta *= rq->dl.running_bw;
+-	delta *= rq->dl.bw_ratio;
+-	delta >>= 20 + 8;
++	u64 u_inact = rq->dl.this_bw - rq->dl.running_bw; /* Utot - Uact */
 +	u64 u_act;
-+
-+	if (rq->dl.this_bw - rq->dl.running_bw > (1 << 20) - u)
-+		u_act = u;
+ 
+-	return delta;
++	/*
++	 * Instead of computing max{u, (1 - u_inact)}, we compare
++	 * u_inact with 1 - u, because u_inact can be larger than 1
++	 * (so, 1 - u_inact would be negative leading to wrong results)
++	 */
++	if (u_inact > BW_UNIT - dl_se->dl_bw)
++		u_act = dl_se->dl_bw;
 +	else
-+		u_act = (1 << 20) - rq->dl.this_bw + rq->dl.running_bw;
++		u_act = BW_UNIT - u_inact;
 +
-+	return (delta * u_act) >> 20;
++	return (delta * u_act) >> BW_SHIFT;
  }
  
  /*
-@@ -951,7 +960,7 @@ static void update_curr_dl(struct rq *rq)
+@@ -960,7 +969,7 @@ static void update_curr_dl(struct rq *rq)
  	sched_rt_avg_update(rq, delta_exec);
  
  	if (unlikely(dl_se->flags & SCHED_FLAG_RECLAIM))
 -		delta_exec = grub_reclaim(delta_exec, rq);
-+		delta_exec = grub_reclaim(delta_exec, rq, curr->dl.dl_bw);
++		delta_exec = grub_reclaim(delta_exec, rq, &curr->dl);
  	dl_se->runtime -= delta_exec;
  
  throttle:

@@ -1,6 +1,6 @@
 - Braces on "else": patches 1, 2, 8
 - deadline_bw_inv -> bw_ratio			DONE!
-- Patch 5: 
+- Patch 5:					DONE! 
 >  
 >  u64 grub_reclaim(u64 delta, struct rq *rq)
 >  {
@@ -51,7 +51,7 @@ s/init_inactive_task_timer(...)/init_dl_inactive_task_timer(...)
 Would it be a good idea to initialise and clear this field in
 rq_online/offline_dl()?
 
-- Patch 8, changelog:
+- Patch 8, changelog:			DONE!
 > In this way, the maximum fraction of CPU time that can be reclaimed
 > is given by the total utilization of deadline tasks.
 > This approach solves some fairness issues that have been noticed with
@@ -60,7 +60,7 @@ rq_online/offline_dl()?
 I think the Changelog could do with explicit enumeration of what "some"
 is.
 
-- Patch 8:
+- Patch 8:				DONE!
 >   * This function implements the GRUB accounting rule:
 >   * according to the GRUB reclaiming algorithm, the runtime is
 > + * not decreased as "dq = -dt", but as "dq = (1 - Uinact) dt", where  

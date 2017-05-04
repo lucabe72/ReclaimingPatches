@@ -1,4 +1,4 @@
-From a01581ee426fde3725efd3de3f250df0ba8620cd Mon Sep 17 00:00:00 2001
+From f2a56ab6a010654c27bcea3d7c744289c4657d31 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Sat, 19 Nov 2016 23:29:56 +0100
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -12,9 +12,9 @@ Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 11 +++++++++++
- kernel/sched/deadline.c |  3 ++-
+ kernel/sched/deadline.c | 12 +++++++++++-
  kernel/sched/sched.h    |  7 +++++++
- 3 files changed, 20 insertions(+), 1 deletion(-)
+ 3 files changed, 29 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
 index 08eb3f3..cdc60c2 100644
@@ -46,7 +46,7 @@ index 08eb3f3..cdc60c2 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index bc608d7..3693305 100644
+index 07ed580..12d08fe 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -212,6 +212,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
@@ -57,12 +57,24 @@ index bc608d7..3693305 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -871,7 +872,7 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -868,10 +869,19 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+  * Uact is the (per-runqueue) active utilization.
+  * Since rq->dl.running_bw contains Uact * 2^20, the result
+  * has to be shifted right by 20.
++ * To reclaim only a fraction Umax of the CPU time, the
++ * runtime accounting rule is modified as
++ * "dq = -Uact / Umax dt"; since rq->dl.bw_ratio contains
++ * 2^8 / Umax, delta is multiplied by bw_ratio and shifted
++ * right by 8.
   */
  u64 grub_reclaim(u64 delta, struct rq *rq)
  {
 -	return (delta * rq->dl.running_bw) >> 20;
-+	return (delta * rq->dl.running_bw * rq->dl.bw_ratio) >> 20 >> 8;
++	delta *= rq->dl.running_bw;
++	delta *= rq->dl.bw_ratio;
++	delta >>= 20 + 8;
++
++	return delta;
  }
  
  /*
