@@ -1,6 +1,6 @@
-From eccdf2c5ef65ec3d2e202908dcd913906d5d894b Mon Sep 17 00:00:00 2001
+From c75f6c6101b06bf652d0660872893618775ab078 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Wed, 3 May 2017 23:36:09 +0200
+Date: Thu, 4 May 2017 16:24:23 +0200
 Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
  tasks
 
@@ -12,13 +12,13 @@ and does not depend on the total deadline utilization.
 Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/core.c     | 14 +++++++-------
+ kernel/sched/core.c     | 17 ++++++++++-------
  kernel/sched/deadline.c | 18 ++++++++++--------
- kernel/sched/sched.h    | 40 ++++++++++++++++++++++++++++++++++++++--
+ kernel/sched/sched.h    | 37 +++++++++++++++++++++++++++++++++++--
  3 files changed, 55 insertions(+), 17 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index a9f48ad..ab2210a 100644
+index aee96b9..27fb9a5 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2456,7 +2456,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -70,6 +70,19 @@ index a9f48ad..ab2210a 100644
  		}
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  		rcu_read_unlock_sched();
+@@ -6738,9 +6738,12 @@ void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
+ {
+ 	if (global_rt_runtime() == RUNTIME_INF) {
+ 		dl_rq->bw_ratio = 1 << 8;
++		dl_rq->extra_bw = 1 << 20;
+ 	} else {
+ 		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
+ 						  global_rt_period()) >> 12;
++		dl_rq->extra_bw = to_ratio(global_rt_period(),
++						    global_rt_runtime());
+ 	}
+ }
+ 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
 index 3d2fdf1..cb30262 100644
 --- a/kernel/sched/deadline.c
@@ -122,7 +135,7 @@ index 3d2fdf1..cb30262 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 4e652ab..619d03b 100644
+index 0bb29fb..e442b38 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -163,20 +176,7 @@ index 4e652ab..619d03b 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1516,9 +1522,12 @@ static inline void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
- {
- 	if (global_rt_runtime() == RUNTIME_INF) {
- 		dl_rq->bw_ratio = 1 << 8;
-+		dl_rq->extra_bw = 1 << 20;
- 	} else {
- 		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
- 						  global_rt_period()) >> 12;
-+		dl_rq->extra_bw = to_ratio(global_rt_period(),
-+						    global_rt_runtime());
- 	}
- }
- 
-@@ -1961,6 +1970,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1952,6 +1958,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
