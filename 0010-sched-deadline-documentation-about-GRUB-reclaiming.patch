@@ -1,6 +1,6 @@
-From b260fa2fbdeaafc091af074a40752bfe9aaa05fd Mon Sep 17 00:00:00 2001
-From: Claudio Scordino <claudio@evidence.eu.com>
-Date: Tue, 28 Mar 2017 14:16:57 +0200
+From fb9a2950c68efef1089b3f911d55ae6d210e92c6 Mon Sep 17 00:00:00 2001
+From: luca abeni <luca.abeni@santannapisa.it>
+Date: Mon, 8 May 2017 11:44:36 +0200
 Subject: [PATCH 10/10] sched/deadline: documentation about GRUB reclaiming
 
 This patch adds the documentation about the GRUB reclaiming algorithm,

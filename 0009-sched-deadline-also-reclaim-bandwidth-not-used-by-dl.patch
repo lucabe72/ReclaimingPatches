@@ -1,4 +1,4 @@
-From 7893ca6ae772f9a831de39883f745d4a092f5267 Mon Sep 17 00:00:00 2001
+From 995eaab7abd85872a3b407d3b54589b37c46735e Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 8 May 2017 10:16:59 +0200
 Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
@@ -16,12 +16,12 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 17 ++++++++++-------
- kernel/sched/deadline.c | 39 ++++++++++++++++++++++-----------------
+ kernel/sched/deadline.c | 42 +++++++++++++++++++++++++-----------------
  kernel/sched/sched.h    | 37 +++++++++++++++++++++++++++++++++++--
- 3 files changed, 67 insertions(+), 26 deletions(-)
+ 3 files changed, 70 insertions(+), 26 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 64f32da..9105e67 100644
+index fb213ad..726ad59 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2456,7 +2456,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -87,7 +87,7 @@ index 64f32da..9105e67 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 1bc9851..fd0c8ef 100644
+index 2f0ef56..630a445 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -155,7 +155,7 @@ static void task_non_contending(struct task_struct *p)
@@ -99,7 +99,7 @@ index 1bc9851..fd0c8ef 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -898,30 +898,35 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -898,30 +898,38 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  /*
   * This function implements the GRUB accounting rule:
   * according to the GRUB reclaiming algorithm, the runtime is
@@ -119,7 +119,10 @@ index 1bc9851..fd0c8ef 100644
 - * multiplied by 2^BW_SHIFT, the result has to be shifted right by BW_SHIFT.
 + * multiplied by 2^20, the result has to be shifted right by 20.
 + * Since rq->dl.bw_ratio contains 1 / Umax multipled by 2^8,
-+ * dl_bw is multiped by rq->dl.bw_ratio and shifted rithg by 8.
++ * dl_bw is multiped by rq->dl.bw_ratio and shifted right by 8.
++ * Since delta is a 64 bit variable, to have an overflow its value
++ * should be larger than 2^(64 - 20 - 8), which is more than 64 seconds.
++ * So, overflow is not an issue here.
   */
 -#define BW_SHIFT 20
 -#define BW_UNIT (1 << BW_SHIFT)
@@ -149,7 +152,7 @@ index 1bc9851..fd0c8ef 100644
  
  	return (delta * u_act) >> BW_SHIFT;
  }
-@@ -1030,7 +1035,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -1030,7 +1038,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -158,7 +161,7 @@ index 1bc9851..fd0c8ef 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -2003,7 +2008,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -2003,7 +2011,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
@@ -168,7 +171,7 @@ index 1bc9851..fd0c8ef 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index a485329..0879aee 100644
+index a8f3667..9892515 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
