@@ -35,7 +35,7 @@ In general I feel it would be nice to have a state diagram included
 somewhere near these two functions. It would be nice to not have to dig
 out the PDF every time.
 
-- Patch 2:
+- Patch 2:				DONE!
 To be consistent with the other DL related functions:
 
 s/init_inactive_task_timer(...)/init_dl_inactive_task_timer(...)

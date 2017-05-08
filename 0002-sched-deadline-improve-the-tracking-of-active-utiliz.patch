@@ -1,4 +1,4 @@
-From a2d5992dd971b37b9de08ef743f4bc05a15e9224 Mon Sep 17 00:00:00 2001
+From 2d47eb5da376c574e85ce80b7bc6a054892cc246 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
@@ -59,7 +59,7 @@ index ba080e5..b4d4d9d 100644
  
  union rcu_special {
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 27b4dd5..78fecbf 100644
+index 27b4dd5..483e8d3 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2165,6 +2165,7 @@ void __dl_clear_params(struct task_struct *p)
@@ -74,7 +74,7 @@ index 27b4dd5..78fecbf 100644
  
  	RB_CLEAR_NODE(&p->dl.rb_node);
  	init_dl_task_timer(&p->dl);
-+	init_inactive_task_timer(&p->dl);
++	init_dl_inactive_task_timer(&p->dl);
  	__dl_clear_params(p);
  
  	INIT_LIST_HEAD(&p->rt.run_list);
@@ -87,7 +87,7 @@ index 27b4dd5..78fecbf 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index ab625cc..c549377 100644
+index ab625cc..3c5f8d3 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -249,7 +249,7 @@ index ab625cc..c549377 100644
 +	return HRTIMER_NORESTART;
 +}
 +
-+void init_inactive_task_timer(struct sched_dl_entity *dl_se)
++void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se)
 +{
 +	struct hrtimer *timer = &dl_se->inactive_timer;
 +
@@ -385,7 +385,7 @@ index ab625cc..c549377 100644
  	.rq_online              = rq_online_dl,
  	.rq_offline             = rq_offline_dl,
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index caaa7d3..57bb79b 100644
+index caaa7d3..a5c2f1c 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -244,6 +244,7 @@ bool __dl_overflow(struct dl_bw *dl_b, int cpus, u64 old_bw, u64 new_bw)
@@ -400,7 +400,7 @@ index caaa7d3..57bb79b 100644
  extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
-+extern void init_inactive_task_timer(struct sched_dl_entity *dl_se);
++extern void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se);
  
  unsigned long to_ratio(u64 period, u64 runtime);
  

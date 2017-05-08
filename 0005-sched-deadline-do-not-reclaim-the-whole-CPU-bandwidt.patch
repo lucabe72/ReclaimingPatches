@@ -1,6 +1,6 @@
-From 840765afdf0495abb8446ad98ae991bc565ff87d Mon Sep 17 00:00:00 2001
+From efd471bf7af7ef4983366abb65883a56aca654d5 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Mon, 8 May 2017 10:13:19 +0200
+Date: Mon, 8 May 2017 11:38:11 +0200
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
 
 Original GRUB tends to reclaim 100% of the CPU time... And this
@@ -17,7 +17,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  3 files changed, 29 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index b8c5e05..5bea9e5 100644
+index 4e2508e..37e6ae9 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -6733,6 +6733,16 @@ static int sched_dl_global_validate(void)
@@ -46,7 +46,7 @@ index b8c5e05..5bea9e5 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index b605f01..7eea2a3 100644
+index 31b4efc..4db1fb0 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -212,6 +212,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
@@ -80,7 +80,7 @@ index b605f01..7eea2a3 100644
  	return delta;
  }
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index d2fbb3b..7a4a088 100644
+index b562a33..b285fce 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -565,6 +565,12 @@ struct dl_rq {
@@ -99,7 +99,7 @@ index d2fbb3b..7a4a088 100644
 @@ -1492,6 +1498,7 @@ extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
- extern void init_inactive_task_timer(struct sched_dl_entity *dl_se);
+ extern void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se);
 +extern void init_dl_rq_bw_ratio(struct dl_rq *dl_rq);
  
  #define BW_SHIFT	20
