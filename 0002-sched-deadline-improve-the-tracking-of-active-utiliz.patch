@@ -1,4 +1,4 @@
-From 2d47eb5da376c574e85ce80b7bc6a054892cc246 Mon Sep 17 00:00:00 2001
+From 6fc9dc94aa8d25cd9f87108197fde644eec6f249 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
@@ -14,11 +14,11 @@ Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Claudio Scordino <claudio@evidence.eu.com>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- include/linux/sched.h   |  17 ++++
+ include/linux/sched.h   |  17 +++
  kernel/sched/core.c     |   3 +
- kernel/sched/deadline.c | 215 ++++++++++++++++++++++++++++++++++++++++++++----
+ kernel/sched/deadline.c | 269 +++++++++++++++++++++++++++++++++++++++++++++---
  kernel/sched/sched.h    |   2 +
- 4 files changed, 222 insertions(+), 15 deletions(-)
+ 4 files changed, 276 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
 index ba080e5..b4d4d9d 100644
@@ -87,10 +87,10 @@ index 27b4dd5..483e8d3 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index ab625cc..3c5f8d3 100644
+index ab625cc..efb4cd1 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -65,6 +65,107 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
+@@ -65,6 +65,161 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
  		dl_rq->running_bw = 0;
  }
  
@@ -115,6 +115,60 @@ index ab625cc..3c5f8d3 100644
 +		put_task_struct(p);
 +}
 +
++/*
++ * The utilization of a task cannot be immediately removed from
++ * the rq active utilization (running_bw) when the task blocks.
++ * Instead, we have to wait for the so called "0-lag time".
++ *
++ * If a task blocks before the "0-lag time", a timer (the inactive
++ * timer) is armed, and running_bw is decreased when the timer
++ * fires.
++ *
++ * If the task wakes up again before the inactive timer fires,
++ * the timer is cancelled, whereas if the task wakes up after the
++ * inactive timer fired (and running_bw has been decreased) the
++ * task's utilization has to be added to running_bw again.
++ * A flag in the deadline scheduling entity (dl_non_contending)
++ * is used to avoid race conditions between the inactive timer handler
++ * and task wakeups.
++ *
++ * The following diagram shows how running_bw is updated. A task is
++ * "ACTIVE" when its utilization contributes to running_bw; an
++ * "ACTIVE contending" task is in the TASK_RUNNING state, while an
++ * "ACTIVE non conteding" task is a blocked task for which the "0-lag time"
++ * has not passed yet. An "INACTIVE" task is a task for which the "0-lag"
++ * time already passed, which does not contribute to running_bw anymore.
++ *                              +------------------+
++ *             wakeup           |    ACTIVE        |
++ *          +------------------>+   contending     |
++ *          | add_running_bw    |                  |
++ *          |                   +----+------+------+
++ *          |                        |      ^
++ *          |                dequeue |      |
++ * +--------+-------+                |      |
++ * |                |   t >= 0-lag   |      | wakeup
++ * |    INACTIVE    |<---------------+      |
++ * |                | sub_running_bw |      |
++ * +--------+-------+                |      |
++ *          ^                        |      |
++ *          |              t < 0-lag |      |
++ *          |                        |      |
++ *          |                        V      |
++ *          |                   +----+------+------+
++ *          | sub_running_bw    |    ACTIVE        |
++ *          +-------------------+                  |
++ *            inactive timer    |  non contending  |
++ *            fired             +------------------+
++ *
++ * The task_non_contending() function is invoked when a task
++ * blocks, and checks if the 0-lag time already passed or
++ * not (in the first case, it directly updates running_bw;
++ * in the second case, it arms the inactive timer).
++ *
++ * The task_contending() function is invoked when a task wakes
++ * up, and cheks if the task is still in the "ACTIVE non contending"
++ * state or not (in the second case, it updates running_bw).
++ */
 +static void task_non_contending(struct task_struct *p)
 +{
 +	struct sched_dl_entity *dl_se = &p->dl;
@@ -198,7 +252,7 @@ index ab625cc..3c5f8d3 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -615,10 +716,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
+@@ -615,10 +770,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
  	 * The task might have changed its scheduling policy to something
  	 * different than SCHED_DEADLINE (through switched_from_dl()).
  	 */
@@ -210,7 +264,7 @@ index ab625cc..3c5f8d3 100644
  
  	/*
  	 * The task might have been boosted by someone else and might be in the
-@@ -837,6 +936,49 @@ static void update_curr_dl(struct rq *rq)
+@@ -837,6 +990,49 @@ static void update_curr_dl(struct rq *rq)
  	}
  }
  
@@ -260,7 +314,7 @@ index ab625cc..3c5f8d3 100644
  #ifdef CONFIG_SMP
  
  static void inc_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
-@@ -969,9 +1111,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -969,9 +1165,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -271,7 +325,7 @@ index ab625cc..3c5f8d3 100644
  		update_dl_entity(dl_se, pi_se);
  	} else if (flags & ENQUEUE_REPLENISH) {
  		replenish_dl_entity(dl_se, pi_se);
-@@ -1040,7 +1180,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1040,7 +1234,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
@@ -282,7 +336,7 @@ index ab625cc..3c5f8d3 100644
  		return;
  	}
  
-@@ -1065,7 +1207,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1065,7 +1261,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		sub_running_bw(p->dl.dl_bw, &rq->dl);
  
  	/*
@@ -292,7 +346,7 @@ index ab625cc..3c5f8d3 100644
  	 * when the task blocks and when it is terminating
  	 * (p->state == TASK_DEAD). We can handle the two cases in the same
  	 * way, because from GRUB's point of view the same thing is happening
-@@ -1073,7 +1216,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1073,7 +1270,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * or "inactive")
  	 */
  	if (flags & DEQUEUE_SLEEP)
@@ -301,7 +355,7 @@ index ab625cc..3c5f8d3 100644
  }
  
  /*
-@@ -1151,6 +1294,35 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1151,6 +1348,35 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	return cpu;
  }
  
@@ -337,7 +391,7 @@ index ab625cc..3c5f8d3 100644
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1792,13 +1964,23 @@ void __init init_sched_dl_class(void)
+@@ -1792,13 +2018,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -367,7 +421,7 @@ index ab625cc..3c5f8d3 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1817,6 +1999,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1817,6 +2053,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -376,7 +430,7 @@ index ab625cc..3c5f8d3 100644
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1891,6 +2075,7 @@ const struct sched_class dl_sched_class = {
+@@ -1891,6 +2129,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,
