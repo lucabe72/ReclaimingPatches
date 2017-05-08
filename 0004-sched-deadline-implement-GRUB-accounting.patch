@@ -1,4 +1,4 @@
-From 7e8dd51a0c62d7b519d1e367b8eb61d8539c3d70 Mon Sep 17 00:00:00 2001
+From 743324412dd35e58a783d8c6c7e4ffcf73c00346 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 04/10] sched/deadline: implement GRUB accounting
@@ -13,14 +13,38 @@ update_curr_dl() to implement the GRUB rule.
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/deadline.c | 14 ++++++++++++++
- 1 file changed, 14 insertions(+)
+ kernel/sched/core.c     |  4 ++--
+ kernel/sched/deadline.c | 17 +++++++++++++++++
+ kernel/sched/sched.h    |  2 ++
+ 3 files changed, 21 insertions(+), 2 deletions(-)
 
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 08eb3f3..b8c5e05 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -2435,7 +2435,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
+ unsigned long to_ratio(u64 period, u64 runtime)
+ {
+ 	if (runtime == RUNTIME_INF)
+-		return 1ULL << 20;
++		return BW_UNIT;
+ 
+ 	/*
+ 	 * Doing this here saves a lot of checks in all
+@@ -2445,7 +2445,7 @@ unsigned long to_ratio(u64 period, u64 runtime)
+ 	if (period == 0)
+ 		return 0;
+ 
+-	return div64_u64(runtime << 20, period);
++	return div64_u64(runtime << BW_SHIFT, period);
+ }
+ 
+ #ifdef CONFIG_SMP
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 31e24c3..bc608d7 100644
+index dbe6eeb..b605f01 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -862,6 +862,19 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)
+@@ -862,6 +862,22 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)
  extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  
  /*
@@ -28,19 +52,22 @@ index 31e24c3..bc608d7 100644
 + * according to the GRUB reclaiming algorithm, the runtime is
 + * not decreased as "dq = -dt", but as "dq = -Uact dt", where
 + * Uact is the (per-runqueue) active utilization.
-+ * Since rq->dl.running_bw contains Uact * 2^20, the result
-+ * has to be shifted right by 20.
++ * Since rq->dl.running_bw contains Uact * 2^BW_SHIFT, the result
++ * has to be shifted right by BW_SHIFT.
 + */
 +u64 grub_reclaim(u64 delta, struct rq *rq)
 +{
-+	return (delta * rq->dl.running_bw) >> 20;
++	delta *= rq->dl.running_bw;
++	delta >>= BW_SHIFT;
++
++	return delta;
 +}
 +
 +/*
   * Update the current task's runtime statistics (provided it is still
   * a -deadline task and has not been removed from the dl_rq).
   */
-@@ -903,6 +916,7 @@ static void update_curr_dl(struct rq *rq)
+@@ -903,6 +919,7 @@ static void update_curr_dl(struct rq *rq)
  
  	sched_rt_avg_update(rq, delta_exec);
  
@@ -48,6 +75,19 @@ index 31e24c3..bc608d7 100644
  	dl_se->runtime -= delta_exec;
  
  throttle:
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index 57bb79b..d2fbb3b 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -1493,6 +1493,8 @@ extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime
+ extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
+ extern void init_inactive_task_timer(struct sched_dl_entity *dl_se);
+ 
++#define BW_SHIFT	20
++#define BW_UNIT		(1 << BW_SHIFT)
+ unsigned long to_ratio(u64 period, u64 runtime);
+ 
+ extern void init_entity_runnable_average(struct sched_entity *se);
 -- 
 2.7.4
 

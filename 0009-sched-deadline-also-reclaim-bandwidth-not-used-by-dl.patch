@@ -1,6 +1,6 @@
-From 2ed6a166518e716b135d19b0eccf85162a67da36 Mon Sep 17 00:00:00 2001
+From 7893ca6ae772f9a831de39883f745d4a092f5267 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Thu, 4 May 2017 22:23:42 +0200
+Date: Mon, 8 May 2017 10:16:59 +0200
 Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
  tasks
 
@@ -16,12 +16,12 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 17 ++++++++++-------
- kernel/sched/deadline.c | 35 +++++++++++++++++++++--------------
+ kernel/sched/deadline.c | 39 ++++++++++++++++++++++-----------------
  kernel/sched/sched.h    | 37 +++++++++++++++++++++++++++++++++++--
- 3 files changed, 66 insertions(+), 23 deletions(-)
+ 3 files changed, 67 insertions(+), 26 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index aee96b9..27fb9a5 100644
+index 64f32da..9105e67 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2456,7 +2456,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -87,7 +87,7 @@ index aee96b9..27fb9a5 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 4a9803c..436d5a3 100644
+index 1bc9851..fd0c8ef 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -155,7 +155,7 @@ static void task_non_contending(struct task_struct *p)
@@ -99,7 +99,7 @@ index 4a9803c..436d5a3 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -898,13 +898,17 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -898,30 +898,35 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  /*
   * This function implements the GRUB accounting rule:
   * according to the GRUB reclaiming algorithm, the runtime is
@@ -116,13 +116,14 @@ index 4a9803c..436d5a3 100644
 + * runqueue active utilization, and Uextra is the (per runqueue) extra
 + * reclaimable utilization.
   * Since rq->dl.running_bw and rq->dl.this_bw contain utilizations
-  * multiplied by 2^20, the result has to be shifted right by 20.
+- * multiplied by 2^BW_SHIFT, the result has to be shifted right by BW_SHIFT.
++ * multiplied by 2^20, the result has to be shifted right by 20.
 + * Since rq->dl.bw_ratio contains 1 / Umax multipled by 2^8,
 + * dl_bw is multiped by rq->dl.bw_ratio and shifted rithg by 8.
   */
- #define BW_SHIFT 20
- #define BW_UNIT (1 << BW_SHIFT)
-@@ -912,16 +916,19 @@ u64 grub_reclaim(u64 delta, struct rq *rq, struct sched_dl_entity *dl_se)
+-#define BW_SHIFT 20
+-#define BW_UNIT (1 << BW_SHIFT)
+ u64 grub_reclaim(u64 delta, struct rq *rq, struct sched_dl_entity *dl_se)
  {
  	u64 u_inact = rq->dl.this_bw - rq->dl.running_bw; /* Utot - Uact */
  	u64 u_act;
@@ -148,7 +149,7 @@ index 4a9803c..436d5a3 100644
  
  	return (delta * u_act) >> BW_SHIFT;
  }
-@@ -1030,7 +1037,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -1030,7 +1035,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -157,7 +158,7 @@ index 4a9803c..436d5a3 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -2003,7 +2010,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -2003,7 +2008,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
@@ -167,7 +168,7 @@ index 4a9803c..436d5a3 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 0bb29fb..e442b38 100644
+index a485329..0879aee 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -208,7 +209,7 @@ index 0bb29fb..e442b38 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1952,6 +1958,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1954,6 +1960,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
