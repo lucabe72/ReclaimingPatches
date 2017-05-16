@@ -1,7 +1,11 @@
-From 106e0dd59130fdc2f61f7b4bd0af5644419f143e Mon Sep 17 00:00:00 2001
+From 8aeed96027d00a35cfd0a233bfb584a9ea849db7 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Jul 2015 11:25:03 +0200
 Subject: [PATCH 06/10] sched/deadline: make GRUB a task's flag
+
+This patch introduces the SCHED_FLAG_RECLAIM flag to specify
+that a DL task is allowed to reclaim unused CPU time (using
+the GRUB algorithm).
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
@@ -23,7 +27,7 @@ index 5f0fe01..e2a6c7b 100644
  
  #endif /* _UAPI_LINUX_SCHED_H */
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 44ce48c..a9f48ad 100644
+index 99aca84..6c8f391 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -4182,7 +4182,8 @@ static int __sched_setscheduler(struct task_struct *p,
@@ -37,10 +41,10 @@ index 44ce48c..a9f48ad 100644
  
  	/*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 3693305..dad4a35 100644
+index 50d41c2..7c1a796 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -917,7 +917,8 @@ static void update_curr_dl(struct rq *rq)
+@@ -983,7 +983,8 @@ static void update_curr_dl(struct rq *rq)
  
  	sched_rt_avg_update(rq, delta_exec);
  

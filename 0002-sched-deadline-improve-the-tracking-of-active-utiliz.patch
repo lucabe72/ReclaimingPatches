@@ -1,4 +1,4 @@
-From 6fc9dc94aa8d25cd9f87108197fde644eec6f249 Mon Sep 17 00:00:00 2001
+From 31befdef1065d12f9e30c4209277c82e00d022f3 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
@@ -21,7 +21,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  4 files changed, 276 insertions(+), 15 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index ba080e5..b4d4d9d 100644
+index ba080e5..d45accf 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
 @@ -445,16 +445,33 @@ struct sched_dl_entity {
@@ -29,7 +29,7 @@ index ba080e5..b4d4d9d 100644
  	 * @dl_yielded tells if task gave up the CPU before consuming
  	 * all its available runtime during the last job.
 +	 *
-+	 * @dl_non_contending tells if task is inactive while still
++	 * @dl_non_contending tells if the task is inactive while still
 +	 * contributing to the active utilization. In other words, it
 +	 * indicates if the inactive timer has been armed and its handler
 +	 * has not been executed yet. This flag is useful to avoid race
@@ -87,7 +87,7 @@ index 27b4dd5..483e8d3 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index ab625cc..efb4cd1 100644
+index ab625cc..89c9f74 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,161 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -135,7 +135,7 @@ index ab625cc..efb4cd1 100644
 + * The following diagram shows how running_bw is updated. A task is
 + * "ACTIVE" when its utilization contributes to running_bw; an
 + * "ACTIVE contending" task is in the TASK_RUNNING state, while an
-+ * "ACTIVE non conteding" task is a blocked task for which the "0-lag time"
++ * "ACTIVE non contending" task is a blocked task for which the "0-lag time"
 + * has not passed yet. An "INACTIVE" task is a task for which the "0-lag"
 + * time already passed, which does not contribute to running_bw anymore.
 + *                              +------------------+
@@ -166,7 +166,7 @@ index ab625cc..efb4cd1 100644
 + * in the second case, it arms the inactive timer).
 + *
 + * The task_contending() function is invoked when a task wakes
-+ * up, and cheks if the task is still in the "ACTIVE non contending"
++ * up, and checks if the task is still in the "ACTIVE non contending"
 + * state or not (in the second case, it updates running_bw).
 + */
 +static void task_non_contending(struct task_struct *p)

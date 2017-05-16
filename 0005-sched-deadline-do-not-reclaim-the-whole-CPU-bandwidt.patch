@@ -1,4 +1,4 @@
-From efd471bf7af7ef4983366abb65883a56aca654d5 Mon Sep 17 00:00:00 2001
+From df68522710b291c3659777e320c11507f4473b93 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 8 May 2017 11:38:11 +0200
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -6,18 +6,19 @@ Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
 Original GRUB tends to reclaim 100% of the CPU time... And this
 allows a CPU hog to starve non-deadline tasks.
 To address this issue, allow the scheduler to reclaim only a
-specified fraction of CPU time.
+specified fraction of CPU time, stored in the new "bw_ratio"
+field of the dl runqueue structure.
 
 Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 11 +++++++++++
  kernel/sched/deadline.c | 12 +++++++++++-
- kernel/sched/sched.h    |  7 +++++++
- 3 files changed, 29 insertions(+), 1 deletion(-)
+ kernel/sched/sched.h    |  8 ++++++++
+ 3 files changed, 30 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 4e2508e..37e6ae9 100644
+index 4e2508e..99aca84 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -6733,6 +6733,16 @@ static int sched_dl_global_validate(void)
@@ -27,10 +28,10 @@ index 4e2508e..37e6ae9 100644
 +void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
 +{
 +	if (global_rt_runtime() == RUNTIME_INF) {
-+		dl_rq->bw_ratio = 1 << 8;
++		dl_rq->bw_ratio = 1 << RATIO_SHIFT;
 +	} else {
 +		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
-+						  global_rt_period()) >> 12;
++						  global_rt_period()) >> (BW_SHIFT - RATIO_SHIFT);
 +	}
 +}
 +
@@ -46,10 +47,10 @@ index 4e2508e..37e6ae9 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 31b4efc..4db1fb0 100644
+index 5b96f88..50d41c2 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -212,6 +212,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
+@@ -266,6 +266,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #else
  	init_dl_bw(&dl_rq->dl_bw);
  #endif
@@ -57,15 +58,15 @@ index 31b4efc..4db1fb0 100644
  }
  
  #ifdef CONFIG_SMP
-@@ -868,11 +869,20 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -922,11 +923,20 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   * Uact is the (per-runqueue) active utilization.
   * Since rq->dl.running_bw contains Uact * 2^BW_SHIFT, the result
   * has to be shifted right by BW_SHIFT.
 + * To reclaim only a fraction Umax of the CPU time, the
 + * runtime accounting rule is modified as
 + * "dq = -Uact / Umax dt"; since rq->dl.bw_ratio contains
-+ * 2^8 / Umax, delta is multiplied by bw_ratio and shifted
-+ * right by 8.
++ * 2^RATIO_SHIFT / Umax, delta is multiplied by bw_ratio and shifted
++ * right by RATIO_SHIFT.
 + * Since delta is a 64 bit variable, to have an overflow its value
 + * should be larger than 2^(64 - 20 - 8), which is more than 64 seconds.
 + * So, overflow is not an issue here.
@@ -75,12 +76,12 @@ index 31b4efc..4db1fb0 100644
  	delta *= rq->dl.running_bw;
 -	delta >>= BW_SHIFT;
 +	delta *= rq->dl.bw_ratio;
-+	delta >>= BW_SHIFT + 8;
++	delta >>= BW_SHIFT + RATIO_SHIFT;
  
  	return delta;
  }
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index b562a33..b285fce 100644
+index b562a33..1186048 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -565,6 +565,12 @@ struct dl_rq {
@@ -96,7 +97,7 @@ index b562a33..b285fce 100644
  };
  
  #ifdef CONFIG_SMP
-@@ -1492,6 +1498,7 @@ extern struct dl_bandwidth def_dl_bandwidth;
+@@ -1492,9 +1498,11 @@ extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
  extern void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se);
@@ -104,6 +105,10 @@ index b562a33..b285fce 100644
  
  #define BW_SHIFT	20
  #define BW_UNIT		(1 << BW_SHIFT)
++#define RATIO_SHIFT	8
+ unsigned long to_ratio(u64 period, u64 runtime);
+ 
+ extern void init_entity_runnable_average(struct sched_entity *se);
 -- 
 2.7.4
 

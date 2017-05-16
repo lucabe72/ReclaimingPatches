@@ -1,4 +1,4 @@
-From 99e236a3f42bbbd2ae2ce2280d183f78c5c6425d Mon Sep 17 00:00:00 2001
+From e10a00a71cbce5fe05a8308b3006af7c5c9dfdb4 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 04/10] sched/deadline: implement GRUB accounting
@@ -41,7 +41,7 @@ index be023f3..4e2508e 100644
  
  #ifdef CONFIG_SMP
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 6ca1ec6..aad35eb 100644
+index 5b63c32..5b96f88 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -916,6 +916,22 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)

@@ -1,4 +1,4 @@
-From 995eaab7abd85872a3b407d3b54589b37c46735e Mon Sep 17 00:00:00 2001
+From 9bf0fea41c862bf085aacfc68b27045276bbde0a Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 8 May 2017 10:16:59 +0200
 Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
@@ -16,12 +16,12 @@ Signed-off-by: luca abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 17 ++++++++++-------
- kernel/sched/deadline.c | 42 +++++++++++++++++++++++++-----------------
+ kernel/sched/deadline.c | 43 ++++++++++++++++++++++++++++---------------
  kernel/sched/sched.h    | 37 +++++++++++++++++++++++++++++++++++--
- 3 files changed, 70 insertions(+), 26 deletions(-)
+ 3 files changed, 73 insertions(+), 24 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index fb213ad..726ad59 100644
+index 6c8f391..2a577f1 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2456,7 +2456,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -76,21 +76,21 @@ index fb213ad..726ad59 100644
 @@ -6738,9 +6738,12 @@ void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
  {
  	if (global_rt_runtime() == RUNTIME_INF) {
- 		dl_rq->bw_ratio = 1 << 8;
-+		dl_rq->extra_bw = 1 << 20;
+ 		dl_rq->bw_ratio = 1 << RATIO_SHIFT;
++		dl_rq->extra_bw = 1 << BW_SHIFT;
  	} else {
  		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
- 						  global_rt_period()) >> 12;
+ 						  global_rt_period()) >> (BW_SHIFT - RATIO_SHIFT);
 +		dl_rq->extra_bw = to_ratio(global_rt_period(),
 +						    global_rt_runtime());
  	}
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 2f0ef56..630a445 100644
+index d51207f..91dc937 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -155,7 +155,7 @@ static void task_non_contending(struct task_struct *p)
+@@ -209,7 +209,7 @@ static void task_non_contending(struct task_struct *p)
  			if (p->state == TASK_DEAD)
  				sub_rq_bw(p->dl.dl_bw, &rq->dl);
  			raw_spin_lock(&dl_b->lock);
@@ -99,7 +99,7 @@ index 2f0ef56..630a445 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -898,30 +898,38 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -952,28 +952,41 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  /*
   * This function implements the GRUB accounting rule:
   * according to the GRUB reclaiming algorithm, the runtime is
@@ -117,15 +117,14 @@ index 2f0ef56..630a445 100644
 + * reclaimable utilization.
   * Since rq->dl.running_bw and rq->dl.this_bw contain utilizations
 - * multiplied by 2^BW_SHIFT, the result has to be shifted right by BW_SHIFT.
-+ * multiplied by 2^20, the result has to be shifted right by 20.
-+ * Since rq->dl.bw_ratio contains 1 / Umax multipled by 2^8,
-+ * dl_bw is multiped by rq->dl.bw_ratio and shifted right by 8.
++ * multiplied by 2^BW_SHIFT, the result has to be shifted right by
++ * BW_SHIFT.
++ * Since rq->dl.bw_ratio contains 1 / Umax multipled by 2^RATIO_SHIFT,
++ * dl_bw is multiped by rq->dl.bw_ratio and shifted right by RATIO_SHIFT.
 + * Since delta is a 64 bit variable, to have an overflow its value
 + * should be larger than 2^(64 - 20 - 8), which is more than 64 seconds.
 + * So, overflow is not an issue here.
   */
--#define BW_SHIFT 20
--#define BW_UNIT (1 << BW_SHIFT)
  u64 grub_reclaim(u64 delta, struct rq *rq, struct sched_dl_entity *dl_se)
  {
  	u64 u_inact = rq->dl.this_bw - rq->dl.running_bw; /* Utot - Uact */
@@ -138,9 +137,11 @@ index 2f0ef56..630a445 100644
 -	 * (so, 1 - u_inact would be negative leading to wrong results)
 +	 * Instead of computing max{u * bw_ratio, (1 - u_inact - u_extra)},
 +	 * we compare u_inact + rq->dl.extra_bw with
-+	 * 1 - (u * rq->dl.bw_ratio >> 8), because u_inact + rq->dl.extra_bw
-+	 * can be larger than 1 * (so, 1 - u_inact - rq->dl.extra_bw
-+	 * would be negative leading to wrong results)
++	 * 1 - (u * rq->dl.bw_ratio >> RATIO_SHIFT), because
++	 * u_inact + rq->dl.extra_bw can be larger than
++	 * 1 * (so, 1 - u_inact - rq->dl.extra_bw would be negative
++	 * leading to wrong results)
++ 	 */
  	 */
 -	if (u_inact > BW_UNIT - dl_se->dl_bw)
 -		u_act = dl_se->dl_bw;
@@ -152,7 +153,7 @@ index 2f0ef56..630a445 100644
  
  	return (delta * u_act) >> BW_SHIFT;
  }
-@@ -1030,7 +1038,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -1082,7 +1095,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -161,7 +162,7 @@ index 2f0ef56..630a445 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -2003,7 +2011,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -2051,7 +2064,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);
@@ -171,7 +172,7 @@ index 2f0ef56..630a445 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index a8f3667..9892515 100644
+index 2782e8f..04678ae 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -212,7 +213,7 @@ index a8f3667..9892515 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1954,6 +1960,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1955,6 +1961,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  

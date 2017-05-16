@@ -1,4 +1,4 @@
-From 1dab1170d77b62cac4852c18375192500412eb9e Mon Sep 17 00:00:00 2001
+From f826bb7d75e2ee07329207b458fa1c5c60d3d50a Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
 Subject: [PATCH 03/10] sched/deadline: fix the update of the total -deadline
@@ -13,11 +13,11 @@ Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
  kernel/sched/core.c     | 38 ++++++++++++++------------------------
- kernel/sched/deadline.c | 23 +++++++++++++----------
- 2 files changed, 27 insertions(+), 34 deletions(-)
+ kernel/sched/deadline.c | 28 +++++++++++++---------------
+ 2 files changed, 27 insertions(+), 39 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 78fecbf..08eb3f3 100644
+index 483e8d3..be023f3 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2487,9 +2487,6 @@ static inline int dl_bw_cpus(int i)
@@ -89,10 +89,10 @@ index 78fecbf..08eb3f3 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 9bff033..31e24c3 100644
+index 89c9f74..5b63c32 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -121,8 +121,14 @@ static void task_non_contending(struct task_struct *p)
+@@ -175,8 +175,14 @@ static void task_non_contending(struct task_struct *p)
  	if (zerolag_time < 0) {
  		if (dl_task(p))
  			sub_running_bw(dl_se->dl_bw, dl_rq);
@@ -108,7 +108,7 @@ index 9bff033..31e24c3 100644
  
  		return;
  	}
-@@ -948,10 +954,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -1002,10 +1008,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
@@ -125,10 +125,12 @@ index 9bff033..31e24c3 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1480,15 +1492,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1532,19 +1544,6 @@ static void task_fork_dl(struct task_struct *p)
+ 	 */
+ }
  
- static void task_dead_dl(struct task_struct *p)
- {
+-static void task_dead_dl(struct task_struct *p)
+-{
 -	struct dl_bw *dl_b = dl_bw_of(task_cpu(p));
 -
 -	/*
@@ -138,9 +140,19 @@ index 9bff033..31e24c3 100644
 -	/* XXX we should retain the bw until 0-lag */
 -	dl_b->total_bw -= p->dl.dl_bw;
 -	raw_spin_unlock_irq(&dl_b->lock);
- }
- 
+-}
+-
  static void set_curr_task_dl(struct rq *rq)
+ {
+ 	struct task_struct *p = rq->curr;
+@@ -2139,7 +2138,6 @@ const struct sched_class dl_sched_class = {
+ 	.set_curr_task		= set_curr_task_dl,
+ 	.task_tick		= task_tick_dl,
+ 	.task_fork              = task_fork_dl,
+-	.task_dead		= task_dead_dl,
+ 
+ 	.prio_changed           = prio_changed_dl,
+ 	.switched_from		= switched_from_dl,
 -- 
 2.7.4
 
