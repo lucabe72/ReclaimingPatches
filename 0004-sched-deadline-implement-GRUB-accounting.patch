@@ -1,4 +1,4 @@
-From 743324412dd35e58a783d8c6c7e4ffcf73c00346 Mon Sep 17 00:00:00 2001
+From 99e236a3f42bbbd2ae2ce2280d183f78c5c6425d Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 04/10] sched/deadline: implement GRUB accounting
@@ -19,7 +19,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  3 files changed, 21 insertions(+), 2 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 08eb3f3..b8c5e05 100644
+index be023f3..4e2508e 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2435,7 +2435,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
@@ -41,10 +41,10 @@ index 08eb3f3..b8c5e05 100644
  
  #ifdef CONFIG_SMP
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index dbe6eeb..b605f01 100644
+index 6ca1ec6..aad35eb 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -862,6 +862,22 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)
+@@ -916,6 +916,22 @@ int dl_runtime_exceeded(struct sched_dl_entity *dl_se)
  extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  
  /*
@@ -67,7 +67,7 @@ index dbe6eeb..b605f01 100644
   * Update the current task's runtime statistics (provided it is still
   * a -deadline task and has not been removed from the dl_rq).
   */
-@@ -903,6 +919,7 @@ static void update_curr_dl(struct rq *rq)
+@@ -957,6 +973,7 @@ static void update_curr_dl(struct rq *rq)
  
  	sched_rt_avg_update(rq, delta_exec);
  
@@ -76,12 +76,12 @@ index dbe6eeb..b605f01 100644
  
  throttle:
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 57bb79b..d2fbb3b 100644
+index a5c2f1c..b562a33 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -1493,6 +1493,8 @@ extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
- extern void init_inactive_task_timer(struct sched_dl_entity *dl_se);
+ extern void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se);
  
 +#define BW_SHIFT	20
 +#define BW_UNIT		(1 << BW_SHIFT)
