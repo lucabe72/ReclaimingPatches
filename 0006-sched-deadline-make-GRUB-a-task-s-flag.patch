@@ -1,4 +1,4 @@
-From 8aeed96027d00a35cfd0a233bfb584a9ea849db7 Mon Sep 17 00:00:00 2001
+From 9549d89189ecf15420d7f8ba1d37dd359ea778ca Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Jul 2015 11:25:03 +0200
 Subject: [PATCH 06/10] sched/deadline: make GRUB a task's flag
@@ -27,7 +27,7 @@ index 5f0fe01..e2a6c7b 100644
  
  #endif /* _UAPI_LINUX_SCHED_H */
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 99aca84..6c8f391 100644
+index 66eef47..e751c71 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -4182,7 +4182,8 @@ static int __sched_setscheduler(struct task_struct *p,

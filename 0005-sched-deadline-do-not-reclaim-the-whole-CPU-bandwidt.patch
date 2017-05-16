@@ -1,4 +1,4 @@
-From df68522710b291c3659777e320c11507f4473b93 Mon Sep 17 00:00:00 2001
+From ae2ca5af5d32204aa555690909272acdefe97155 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Mon, 8 May 2017 11:38:11 +0200
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -18,7 +18,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  3 files changed, 30 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 4e2508e..99aca84 100644
+index 4e2508e..66eef47 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -6733,6 +6733,16 @@ static int sched_dl_global_validate(void)
@@ -31,7 +31,7 @@ index 4e2508e..99aca84 100644
 +		dl_rq->bw_ratio = 1 << RATIO_SHIFT;
 +	} else {
 +		dl_rq->bw_ratio = to_ratio(global_rt_runtime(),
-+						  global_rt_period()) >> (BW_SHIFT - RATIO_SHIFT);
++			  global_rt_period()) >> (BW_SHIFT - RATIO_SHIFT);
 +	}
 +}
 +
