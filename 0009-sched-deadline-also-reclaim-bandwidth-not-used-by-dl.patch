@@ -1,4 +1,4 @@
-From 90c7e7cadc81493b7ade6e7b4ad2f5f4d6565e90 Mon Sep 17 00:00:00 2001
+From 42dc588275269263993bb6e63c1c3ceaaf7b93c8 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 16 May 2017 14:27:23 +0200
 Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
@@ -21,7 +21,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  3 files changed, 72 insertions(+), 24 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index e751c71..d1ac755 100644
+index 7fcc3bd..0628c50 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2456,7 +2456,7 @@ inline struct dl_bw *dl_bw_of(int i)
@@ -64,7 +64,7 @@ index e751c71..d1ac755 100644
  		dl_change_utilization(p, new_bw);
  		err = 0;
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
-@@ -5502,7 +5502,7 @@ int task_can_attach(struct task_struct *p,
+@@ -5527,7 +5527,7 @@ int task_can_attach(struct task_struct *p,
  			 * We will free resources in the source root_domain
  			 * later on (see set_cpus_allowed_dl()).
  			 */
@@ -73,7 +73,7 @@ index e751c71..d1ac755 100644
  		}
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  		rcu_read_unlock_sched();
-@@ -6738,9 +6738,12 @@ void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
+@@ -6759,9 +6759,12 @@ void init_dl_rq_bw_ratio(struct dl_rq *dl_rq)
  {
  	if (global_rt_runtime() == RUNTIME_INF) {
  		dl_rq->bw_ratio = 1 << RATIO_SHIFT;
@@ -171,7 +171,7 @@ index 4286bb8..20f3e21 100644
  	}
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 2782e8f..04678ae 100644
+index 0939ac4..fdbc30d 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -219,22 +219,27 @@ static inline int dl_bandwidth_enabled(void)
@@ -212,7 +212,7 @@ index 2782e8f..04678ae 100644
  
  	/*
  	 * Inverse of the fraction of CPU utilization that can be reclaimed
-@@ -1955,6 +1961,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
+@@ -1958,6 +1964,33 @@ extern void nohz_balance_exit_idle(unsigned int cpu);
  static inline void nohz_balance_exit_idle(unsigned int cpu) { }
  #endif
  
@@ -245,7 +245,7 @@ index 2782e8f..04678ae 100644
 +
  #ifdef CONFIG_IRQ_TIME_ACCOUNTING
  struct irqtime {
- 	u64			tick_delta;
+ 	u64			total;
 -- 
 2.7.4
 

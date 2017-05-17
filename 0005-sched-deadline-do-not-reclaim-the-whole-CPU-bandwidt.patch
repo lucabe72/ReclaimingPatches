@@ -1,4 +1,4 @@
-From 59187f48b08975b6f8945c737c6ceb87e9ce2765 Mon Sep 17 00:00:00 2001
+From bb45a3675ac5d33ceb513ac350df1ac98b193419 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Wed, 17 May 2017 10:48:29 +0200
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
@@ -18,10 +18,10 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  3 files changed, 30 insertions(+), 1 deletion(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 4e2508e..66eef47 100644
+index 14dd97e..84cd00f 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -6733,6 +6733,16 @@ static int sched_dl_global_validate(void)
+@@ -6754,6 +6754,16 @@ static int sched_dl_global_validate(void)
  	return ret;
  }
  
@@ -38,7 +38,7 @@ index 4e2508e..66eef47 100644
  static void sched_dl_do_global(void)
  {
  	u64 new_bw = -1;
-@@ -6758,6 +6768,7 @@ static void sched_dl_do_global(void)
+@@ -6779,6 +6789,7 @@ static void sched_dl_do_global(void)
  		raw_spin_unlock_irqrestore(&dl_b->lock, flags);
  
  		rcu_read_unlock_sched();
@@ -81,7 +81,7 @@ index 4e0c02c..f4d36aa 100644
  	return delta;
  }
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index b562a33..1186048 100644
+index c0001ab..cd20da1 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -565,6 +565,12 @@ struct dl_rq {
@@ -97,7 +97,7 @@ index b562a33..1186048 100644
  };
  
  #ifdef CONFIG_SMP
-@@ -1492,9 +1498,11 @@ extern struct dl_bandwidth def_dl_bandwidth;
+@@ -1495,9 +1501,11 @@ extern struct dl_bandwidth def_dl_bandwidth;
  extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime);
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
  extern void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se);

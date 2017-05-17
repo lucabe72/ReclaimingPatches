@@ -1,4 +1,4 @@
-From 2f3f70f6b779783ef538cb89b210adf2f3c49155 Mon Sep 17 00:00:00 2001
+From 1a324d9159a80920ba8aa159d9d7501e207afd0d Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@unitn.it>
 Date: Tue, 13 Oct 2015 13:13:09 +0200
 Subject: [PATCH 01/10] sched/deadline: track the active utilization
@@ -152,7 +152,7 @@ index a2ce590..9be399d 100644
  			dmin = p->dl.deadline;
  
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 57caf36..caaa7d3 100644
+index bcdf6a1..28b7a74 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -558,6 +558,12 @@ struct dl_rq {

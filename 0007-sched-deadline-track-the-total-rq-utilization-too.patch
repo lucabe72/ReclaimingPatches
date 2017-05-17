@@ -1,4 +1,4 @@
-From 151088a4b4ab820191c40890cf425b7338a3cdce Mon Sep 17 00:00:00 2001
+From e5c73ea302dd5de4e35d97687bafeeacb689795c Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Wed, 3 May 2017 23:41:45 +0200
 Subject: [PATCH 07/10] sched/deadline: track the "total rq utilization" too
@@ -267,7 +267,7 @@ index 0f545c1..c224c0dd 100644
  	 * If p is boosted we already updated its params in
  	 * rt_mutex_setprio()->enqueue_task(..., ENQUEUE_REPLENISH),
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index 1186048..2782e8f 100644
+index cd20da1..0939ac4 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
 @@ -567,6 +567,17 @@ struct dl_rq {

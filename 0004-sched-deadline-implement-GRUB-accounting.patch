@@ -1,4 +1,4 @@
-From 6bcd54daf001dc7bc88a399bc0eb63f0f6dc62a1 Mon Sep 17 00:00:00 2001
+From 764a7ac14bcb4b109e88932053c9612f4d718786 Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Tue, 1 Jul 2014 14:45:05 +0200
 Subject: [PATCH 04/10] sched/deadline: implement GRUB accounting
@@ -19,7 +19,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  3 files changed, 21 insertions(+), 2 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index be023f3..4e2508e 100644
+index 57856b2..14dd97e 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2435,7 +2435,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
@@ -76,10 +76,10 @@ index bb71d65..4e0c02c 100644
  
  throttle:
 diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
-index a5c2f1c..b562a33 100644
+index 3069e45..c0001ab 100644
 --- a/kernel/sched/sched.h
 +++ b/kernel/sched/sched.h
-@@ -1493,6 +1493,8 @@ extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime
+@@ -1496,6 +1496,8 @@ extern void init_dl_bandwidth(struct dl_bandwidth *dl_b, u64 period, u64 runtime
  extern void init_dl_task_timer(struct sched_dl_entity *dl_se);
  extern void init_dl_inactive_task_timer(struct sched_dl_entity *dl_se);
  

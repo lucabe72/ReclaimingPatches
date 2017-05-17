@@ -1,4 +1,4 @@
-From 4f21f771cc2c1a13a5fbc05adb5cf0ce7573cba5 Mon Sep 17 00:00:00 2001
+From ec4f82155dabb85e5e3e02a64d74faa50c819243 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
 Subject: [PATCH 03/10] sched/deadline: fix the update of the total -deadline
@@ -17,7 +17,7 @@ Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
  2 files changed, 27 insertions(+), 39 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 483e8d3..be023f3 100644
+index 5d49374..57856b2 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2487,9 +2487,6 @@ static inline int dl_bw_cpus(int i)
@@ -61,7 +61,7 @@ index 483e8d3..be023f3 100644
  		err = 0;
  	}
  	raw_spin_unlock(&dl_b->lock);
-@@ -4007,26 +4017,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
+@@ -4032,26 +4042,6 @@ __setparam_dl(struct task_struct *p, const struct sched_attr *attr)
  	dl_se->dl_period = attr->sched_period ?: dl_se->dl_deadline;
  	dl_se->flags = attr->sched_flags;
  	dl_se->dl_bw = to_ratio(dl_se->dl_period, dl_se->dl_runtime);
