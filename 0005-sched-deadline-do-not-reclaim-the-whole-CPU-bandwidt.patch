@@ -1,6 +1,6 @@
-From ae2ca5af5d32204aa555690909272acdefe97155 Mon Sep 17 00:00:00 2001
+From 59187f48b08975b6f8945c737c6ceb87e9ce2765 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
-Date: Mon, 8 May 2017 11:38:11 +0200
+Date: Wed, 17 May 2017 10:48:29 +0200
 Subject: [PATCH 05/10] sched/deadline: do not reclaim the whole CPU bandwidth
 
 Original GRUB tends to reclaim 100% of the CPU time... And this
@@ -47,18 +47,18 @@ index 4e2508e..66eef47 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 5b96f88..50d41c2 100644
+index 4e0c02c..f4d36aa 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
-@@ -266,6 +266,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
- #else
- 	init_dl_bw(&dl_rq->dl_bw);
+@@ -268,6 +268,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
  #endif
+ 
+ 	dl_rq->running_bw = 0;
 +	init_dl_rq_bw_ratio(dl_rq);
  }
  
  #ifdef CONFIG_SMP
-@@ -922,11 +923,20 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -924,11 +925,20 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
   * Uact is the (per-runqueue) active utilization.
   * Since rq->dl.running_bw contains Uact * 2^BW_SHIFT, the result
   * has to be shifted right by BW_SHIFT.

@@ -1,4 +1,4 @@
-From 31befdef1065d12f9e30c4209277c82e00d022f3 Mon Sep 17 00:00:00 2001
+From 61e17679f65a4a83d3a55b9f4024c0af1253a4df Mon Sep 17 00:00:00 2001
 From: Luca Abeni <luca.abeni@santannapisa.it>
 Date: Mon, 6 Mar 2017 11:11:33 +0100
 Subject: [PATCH 02/10] sched/deadline: improve the tracking of active
@@ -87,7 +87,7 @@ index 27b4dd5..483e8d3 100644
  	} else if (!dl_policy(policy) && task_has_dl_policy(p)) {
  		__dl_clear(dl_b, p->dl.dl_bw);
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index ab625cc..89c9f74 100644
+index 9be399d..147cbe6 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -65,6 +65,161 @@ void sub_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -252,7 +252,7 @@ index ab625cc..89c9f74 100644
  static inline int is_leftmost(struct task_struct *p, struct dl_rq *dl_rq)
  {
  	struct sched_dl_entity *dl_se = &p->dl;
-@@ -615,10 +770,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
+@@ -617,10 +772,8 @@ static enum hrtimer_restart dl_task_timer(struct hrtimer *timer)
  	 * The task might have changed its scheduling policy to something
  	 * different than SCHED_DEADLINE (through switched_from_dl()).
  	 */
@@ -264,7 +264,7 @@ index ab625cc..89c9f74 100644
  
  	/*
  	 * The task might have been boosted by someone else and might be in the
-@@ -837,6 +990,49 @@ static void update_curr_dl(struct rq *rq)
+@@ -839,6 +992,49 @@ static void update_curr_dl(struct rq *rq)
  	}
  }
  
@@ -314,7 +314,7 @@ index ab625cc..89c9f74 100644
  #ifdef CONFIG_SMP
  
  static void inc_dl_deadline(struct dl_rq *dl_rq, u64 deadline)
-@@ -969,9 +1165,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -971,9 +1167,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -325,7 +325,7 @@ index ab625cc..89c9f74 100644
  		update_dl_entity(dl_se, pi_se);
  	} else if (flags & ENQUEUE_REPLENISH) {
  		replenish_dl_entity(dl_se, pi_se);
-@@ -1040,7 +1234,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1042,7 +1236,9 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * add_running_bw().
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
@@ -336,7 +336,7 @@ index ab625cc..89c9f74 100644
  		return;
  	}
  
-@@ -1065,7 +1261,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1067,7 +1263,8 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  		sub_running_bw(p->dl.dl_bw, &rq->dl);
  
  	/*
@@ -346,7 +346,7 @@ index ab625cc..89c9f74 100644
  	 * when the task blocks and when it is terminating
  	 * (p->state == TASK_DEAD). We can handle the two cases in the same
  	 * way, because from GRUB's point of view the same thing is happening
-@@ -1073,7 +1270,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1075,7 +1272,7 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 * or "inactive")
  	 */
  	if (flags & DEQUEUE_SLEEP)
@@ -355,7 +355,7 @@ index ab625cc..89c9f74 100644
  }
  
  /*
-@@ -1151,6 +1348,35 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
+@@ -1153,6 +1350,35 @@ select_task_rq_dl(struct task_struct *p, int cpu, int sd_flag, int flags)
  	return cpu;
  }
  
@@ -391,7 +391,7 @@ index ab625cc..89c9f74 100644
  static void check_preempt_equal_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
-@@ -1792,13 +2018,23 @@ void __init init_sched_dl_class(void)
+@@ -1794,13 +2020,23 @@ void __init init_sched_dl_class(void)
  static void switched_from_dl(struct rq *rq, struct task_struct *p)
  {
  	/*
@@ -421,7 +421,7 @@ index ab625cc..89c9f74 100644
  
  	/*
  	 * Since this might be the only -deadline task on the rq,
-@@ -1817,6 +2053,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -1819,6 +2055,8 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
   */
  static void switched_to_dl(struct rq *rq, struct task_struct *p)
  {
@@ -430,7 +430,7 @@ index ab625cc..89c9f74 100644
  
  	/* If p is not queued we will update its parameters at next wakeup. */
  	if (!task_on_rq_queued(p))
-@@ -1891,6 +2129,7 @@ const struct sched_class dl_sched_class = {
+@@ -1893,6 +2131,7 @@ const struct sched_class dl_sched_class = {
  
  #ifdef CONFIG_SMP
  	.select_task_rq		= select_task_rq_dl,

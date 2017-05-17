@@ -1,4 +1,4 @@
-From ba40120d9e967ef41692c6def55ddbca6c23d3ce Mon Sep 17 00:00:00 2001
+From 90c7e7cadc81493b7ade6e7b4ad2f5f4d6565e90 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 16 May 2017 14:27:23 +0200
 Subject: [PATCH 09/10] sched/deadline: also reclaim bandwidth not used by dl
@@ -87,7 +87,7 @@ index e751c71..d1ac755 100644
  }
  
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index d51207f..f97dc30 100644
+index 4286bb8..20f3e21 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -209,7 +209,7 @@ static void task_non_contending(struct task_struct *p)
@@ -99,7 +99,7 @@ index d51207f..f97dc30 100644
  			__dl_clear_params(p);
  			raw_spin_unlock(&dl_b->lock);
  		}
-@@ -952,28 +952,40 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
+@@ -955,28 +955,40 @@ extern bool sched_rt_bandwidth_account(struct rt_rq *rt_rq);
  /*
   * This function implements the GRUB accounting rule:
   * according to the GRUB reclaiming algorithm, the runtime is
@@ -152,7 +152,7 @@ index d51207f..f97dc30 100644
  
  	return (delta * u_act) >> BW_SHIFT;
  }
-@@ -1082,7 +1094,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -1085,7 +1097,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  		}
  
  		raw_spin_lock(&dl_b->lock);
@@ -161,7 +161,7 @@ index d51207f..f97dc30 100644
  		raw_spin_unlock(&dl_b->lock);
  		__dl_clear_params(p);
  
-@@ -2051,7 +2063,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
+@@ -2054,7 +2066,7 @@ static void set_cpus_allowed_dl(struct task_struct *p,
  		 * until we complete the update.
  		 */
  		raw_spin_lock(&src_dl_b->lock);

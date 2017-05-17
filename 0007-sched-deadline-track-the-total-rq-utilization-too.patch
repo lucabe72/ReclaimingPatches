@@ -1,4 +1,4 @@
-From 83b7659fe072046821158465644b62715a0aabac Mon Sep 17 00:00:00 2001
+From 151088a4b4ab820191c40890cf425b7338a3cdce Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Wed, 3 May 2017 23:41:45 +0200
 Subject: [PATCH 07/10] sched/deadline: track the "total rq utilization" too
@@ -11,12 +11,12 @@ Signed-off-by: Luca Abeni <luca.abeni@santannapisa.it>
 Signed-off-by: Claudio Scordino <claudio@evidence.eu.com>
 Tested-by: Daniel Bristot de Oliveira <bristot@redhat.com>
 ---
- kernel/sched/deadline.c | 117 ++++++++++++++++++++++++++++++++++--------------
+ kernel/sched/deadline.c | 118 ++++++++++++++++++++++++++++++++++--------------
  kernel/sched/sched.h    |  11 +++++
- 2 files changed, 94 insertions(+), 34 deletions(-)
+ 2 files changed, 95 insertions(+), 34 deletions(-)
 
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 7c1a796..29f2f1d 100644
+index 0f545c1..c224c0dd 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -51,6 +51,7 @@ void add_running_bw(u64 dl_bw, struct dl_rq *dl_rq)
@@ -122,7 +122,15 @@ index 7c1a796..29f2f1d 100644
  	if (dl_se->dl_non_contending) {
  		dl_se->dl_non_contending = 0;
  		/*
-@@ -1040,6 +1073,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -268,6 +301,7 @@ void init_dl_rq(struct dl_rq *dl_rq)
+ #endif
+ 
+ 	dl_rq->running_bw = 0;
++	dl_rq->this_bw = 0;
+ 	init_dl_rq_bw_ratio(dl_rq);
+ }
+ 
+@@ -1042,6 +1076,7 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  
  		if (p->state == TASK_DEAD && dl_se->dl_non_contending) {
  			sub_running_bw(p->dl.dl_bw, dl_rq_of_se(&p->dl));
@@ -130,7 +138,7 @@ index 7c1a796..29f2f1d 100644
  			dl_se->dl_non_contending = 0;
  		}
  
-@@ -1205,7 +1239,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
+@@ -1207,7 +1242,7 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se,
  	 * we want a replenishment of its runtime.
  	 */
  	if (flags & ENQUEUE_WAKEUP) {
@@ -139,7 +147,7 @@ index 7c1a796..29f2f1d 100644
  		update_dl_entity(dl_se, pi_se);
  	} else if (flags & ENQUEUE_REPLENISH) {
  		replenish_dl_entity(dl_se, pi_se);
-@@ -1258,8 +1292,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1260,8 +1295,10 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	if (!p->dl.dl_throttled && dl_is_constrained(&p->dl))
  		dl_check_constrained_dl(&p->dl);
  
@@ -151,7 +159,7 @@ index 7c1a796..29f2f1d 100644
  
  	/*
  	 * If p is throttled, we do not enqueue it. In fact, if it exhausted
-@@ -1275,7 +1311,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1277,7 +1314,7 @@ static void enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	 */
  	if (p->dl.dl_throttled && !(flags & ENQUEUE_REPLENISH)) {
  		if (flags & ENQUEUE_WAKEUP)
@@ -160,7 +168,7 @@ index 7c1a796..29f2f1d 100644
  
  		return;
  	}
-@@ -1297,8 +1333,10 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
+@@ -1299,8 +1336,10 @@ static void dequeue_task_dl(struct rq *rq, struct task_struct *p, int flags)
  	update_curr_dl(rq);
  	__dequeue_task_dl(rq, p, flags);
  
@@ -172,7 +180,7 @@ index 7c1a796..29f2f1d 100644
  
  	/*
  	 * This check allows to start the inactive timer (or to immediately
-@@ -1392,7 +1430,7 @@ static void migrate_task_rq_dl(struct task_struct *p)
+@@ -1394,7 +1433,7 @@ static void migrate_task_rq_dl(struct task_struct *p)
  {
  	struct rq *rq;
  
@@ -181,7 +189,7 @@ index 7c1a796..29f2f1d 100644
  		return;
  
  	rq = task_rq(p);
-@@ -1402,18 +1440,20 @@ static void migrate_task_rq_dl(struct task_struct *p)
+@@ -1404,18 +1443,20 @@ static void migrate_task_rq_dl(struct task_struct *p)
  	 * rq->lock is not... So, lock it
  	 */
  	raw_spin_lock(&rq->lock);
@@ -214,7 +222,7 @@ index 7c1a796..29f2f1d 100644
  	raw_spin_unlock(&rq->lock);
  }
  
-@@ -1856,7 +1896,9 @@ static int push_dl_task(struct rq *rq)
+@@ -1858,7 +1899,9 @@ static int push_dl_task(struct rq *rq)
  
  	deactivate_task(rq, next_task, 0);
  	sub_running_bw(next_task->dl.dl_bw, &rq->dl);
@@ -224,7 +232,7 @@ index 7c1a796..29f2f1d 100644
  	add_running_bw(next_task->dl.dl_bw, &later_rq->dl);
  	activate_task(later_rq, next_task, 0);
  	ret = 1;
-@@ -1946,7 +1988,9 @@ static void pull_dl_task(struct rq *this_rq)
+@@ -1948,7 +1991,9 @@ static void pull_dl_task(struct rq *this_rq)
  
  			deactivate_task(src_rq, p, 0);
  			sub_running_bw(p->dl.dl_bw, &src_rq->dl);
@@ -234,7 +242,7 @@ index 7c1a796..29f2f1d 100644
  			add_running_bw(p->dl.dl_bw, &this_rq->dl);
  			activate_task(this_rq, p, 0);
  			dmin = p->dl.deadline;
-@@ -2055,6 +2099,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
+@@ -2057,6 +2102,9 @@ static void switched_from_dl(struct rq *rq, struct task_struct *p)
  	if (task_on_rq_queued(p) && p->dl.dl_runtime)
  		task_non_contending(p);
  
@@ -244,7 +252,7 @@ index 7c1a796..29f2f1d 100644
  	/*
  	 * We cannot use inactive_task_timer() to invoke sub_running_bw()
  	 * at the 0-lag time, because the task could have been migrated
-@@ -2084,9 +2131,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
+@@ -2086,9 +2134,11 @@ static void switched_to_dl(struct rq *rq, struct task_struct *p)
  		put_task_struct(p);
  
  	/* If p is not queued we will update its parameters at next wakeup. */

@@ -1,4 +1,4 @@
-From f826bb7d75e2ee07329207b458fa1c5c60d3d50a Mon Sep 17 00:00:00 2001
+From 4f21f771cc2c1a13a5fbc05adb5cf0ce7573cba5 Mon Sep 17 00:00:00 2001
 From: luca abeni <luca.abeni@santannapisa.it>
 Date: Tue, 28 Feb 2017 12:48:54 +0100
 Subject: [PATCH 03/10] sched/deadline: fix the update of the total -deadline
@@ -89,7 +89,7 @@ index 483e8d3..be023f3 100644
  
  /*
 diff --git a/kernel/sched/deadline.c b/kernel/sched/deadline.c
-index 89c9f74..5b63c32 100644
+index 147cbe6..bb71d65 100644
 --- a/kernel/sched/deadline.c
 +++ b/kernel/sched/deadline.c
 @@ -175,8 +175,14 @@ static void task_non_contending(struct task_struct *p)
@@ -108,7 +108,7 @@ index 89c9f74..5b63c32 100644
  
  		return;
  	}
-@@ -1002,10 +1008,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
+@@ -1004,10 +1010,16 @@ static enum hrtimer_restart inactive_task_timer(struct hrtimer *timer)
  	rq = task_rq_lock(p, &rf);
  
  	if (!dl_task(p) || p->state == TASK_DEAD) {
@@ -125,7 +125,7 @@ index 89c9f74..5b63c32 100644
  		__dl_clear_params(p);
  
  		goto unlock;
-@@ -1532,19 +1544,6 @@ static void task_fork_dl(struct task_struct *p)
+@@ -1534,19 +1546,6 @@ static void task_fork_dl(struct task_struct *p)
  	 */
  }
  
@@ -145,7 +145,7 @@ index 89c9f74..5b63c32 100644
  static void set_curr_task_dl(struct rq *rq)
  {
  	struct task_struct *p = rq->curr;
-@@ -2139,7 +2138,6 @@ const struct sched_class dl_sched_class = {
+@@ -2141,7 +2140,6 @@ const struct sched_class dl_sched_class = {
  	.set_curr_task		= set_curr_task_dl,
  	.task_tick		= task_tick_dl,
  	.task_fork              = task_fork_dl,
